@@ -50,9 +50,9 @@ retry_file_name: retries.txt
 # this file is created in the logs directory, default is 'progress.txt'
 progress_file_name: progress.txt
 #
-collection: BLANK
-scheme: cadc
-preview_scheme: cadc
+collection: LOTSS
+scheme: astron
+preview_scheme: astron
 #
 # CADC service execution metrics
 #
