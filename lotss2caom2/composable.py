@@ -98,23 +98,7 @@ import logging
 import sys
 import traceback
 
-from caom2pipe.manage_composable import Config
-from caom2pipe.name_builder_composable import EntryBuilder
-from caom2pipe.run_composable import run_by_todo
-from lotss2caom2 import clients, data_source, fits2caom2_augmentation, main_app, metadata_reader, preview_augmentation
-
-
-META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
-DATA_VISITORS = []
-
-
-def _common_init():
-    builder = EntryBuilder(main_app.LOTSSName)
-    config = Config()
-    config.get_executors()
-    astron_clients = clients.ASTRONClientCollection(config)
-    reader = metadata_reader.LOTSSDR2MetadataReader(astron_clients, config.http_get_timeout)
-    return builder, config, astron_clients, reader
+from lotss2caom2 import lotss_execute
 
 
 def _run():
@@ -124,15 +108,7 @@ def _run():
     :return 0 if successful, -1 if there's any sort of failure. Return status
         is used by airflow for task instance management and reporting.
     """
-    builder, config, astron_clients, reader = _common_init()
-    return run_by_todo(
-        clients=astron_clients,
-        config=config,
-        meta_visitors=META_VISITORS,
-        data_visitors=DATA_VISITORS,
-        name_builder=builder,
-        metadata_reader=reader,
-    )
+    return lotss_execute.execute()
 
 
 def run():
@@ -154,17 +130,7 @@ def _run_remote():
     :return 0 if successful, -1 if there's any sort of failure. Return status
         is used by airflow for task instance management and reporting.
     """
-    builder, config, astron_clients, reader = _common_init()
-    source = data_source.ASTRONPyVODataSource(config, astron_clients)
-    return run_by_todo(
-        clients=astron_clients,
-        config=config,
-        meta_visitors=META_VISITORS,
-        data_visitors=DATA_VISITORS,
-        name_builder=builder,
-        sources=[source],
-        metadata_reader=reader,
-    )
+    return lotss_execute.remote_execute()
 
 
 def run_remote():

@@ -68,11 +68,12 @@
 
 from mock import patch
 
-from lotss2caom2 import fits2caom2_augmentation, main_app, metadata_reader
+from lotss2caom2 import fits2caom2_augmentation, main_app
 from caom2.diff import get_differences
 from caom2pipe import astro_composable as ac
 from caom2pipe import manage_composable as mc
 from caom2pipe import reader_composable as rdc
+from lotss2caom2 import lotss_execute
 
 import glob
 import helpers
@@ -85,12 +86,15 @@ TEST_DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 def pytest_generate_tests(metafunc):
     obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P*')
+    # obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P000+23')
     metafunc.parametrize('test_name', obs_id_list)
 
 
-@patch('lotss2caom2.metadata_reader.http_get')
+@patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_main_app(clients_mock, http_get_mock, test_name, test_config, test_data_dir):
+    import logging
+    # logging.getLogger().setLevel(logging.DEBUG)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
     def _endpoint_mock(url):
@@ -107,15 +111,7 @@ def test_main_app(clients_mock, http_get_mock, test_name, test_config, test_data
         shutil.copy(f'{test_name}/fits_headers.tar', '/tmp')
 
     http_get_mock.side_effect = _http_get_mock
-    storage_name = main_app.LOTSSName(test_name)
-    test_reader = metadata_reader.LOTSSDR2MetadataReader(clients_mock, test_config.http_get_timeout)
-    test_reader.set(storage_name)
-    kwargs = {
-        'storage_name': storage_name,
-        'metadata_reader': test_reader,
-        'config': test_config,
-    }
-    expected_fqn = f'{test_name}/{os.path.basename(test_name)}.expected.xml'
+    expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
     in_fqn = expected_fqn.replace('.expected', '.in')
     actual_fqn = expected_fqn.replace('expected', 'actual')
     if os.path.exists(actual_fqn):
@@ -123,7 +119,14 @@ def test_main_app(clients_mock, http_get_mock, test_name, test_config, test_data
     observation = None
     if os.path.exists(in_fqn):
         observation = mc.read_obs_from_file(in_fqn)
-    observation = fits2caom2_augmentation.visit(observation, **kwargs)
+    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, http_get_timeout=None)
+    expander.expand(test_name)
+    for hierarchy in expander.hierarchies.values():
+        kwargs = {
+            'strategy': hierarchy,
+            'config': test_config,
+        }
+        observation = fits2caom2_augmentation.visit(observation, **kwargs)
     if observation is None:
         assert False, f'Did not create observation for {test_name}'
     else:

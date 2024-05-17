@@ -71,10 +71,32 @@ import os
 import shutil
 
 from caom2 import ReleaseType, ProductType
-from caom2pipe.manage_composable import CadcException, http_get, PreviewVisitor, StorageName
+from caom2pipe.manage_composable import CadcException, get_artifact_metadata, http_get, PreviewMeta
 
 
-class LOTSSPreview(PreviewVisitor):
+def search_for_file(strategy, file_name, working_directory):
+    temp_fqn = os.path.join(working_directory, file_name)
+    temp_obs_fqn = os.path.join(os.path.join(working_directory, strategy.obs_id), file_name)
+    fqn = temp_fqn
+    if (
+        strategy.source_names is not None
+        and len(strategy.source_names) > 0
+        and os.path.exists(strategy.source_names[0])
+        # is there an uncompressed file name?
+        and strategy.source_names[0].endswith(file_name)
+    ):
+        fqn = strategy.source_names[0]
+    elif os.path.exists(temp_fqn):
+        fqn = temp_fqn
+    elif os.path.exists(temp_obs_fqn):
+        fqn = temp_obs_fqn
+    elif len(strategy.source_names) > 0 and os.path.exists(strategy.source_names[0]):
+        # use the compressed file, if it can be found
+        fqn = strategy.source_names[0]
+    return fqn
+
+
+class LOTSSPreview:
     """
     Generate a small thumbnail from a previously existing preview image. Override most of the existing
     class, because the original science file is unnecessary.
@@ -84,16 +106,15 @@ class LOTSSPreview(PreviewVisitor):
         self._logger = logging.getLogger(self.__class__.__name__)
         self._release_type = ReleaseType.META
         self._mime_type = 'image/jpeg'
-        self._working_dir = kwargs.get('working_directory', './')
+        config = kwargs.get('config')
+        if config is None:
+            raise CadcException('Visitor needs a config parameter.')
         self._clients = kwargs.get('clients')
         if self._clients is None or self._clients.data_client is None:
             self._logger.warning('Visitor needs a clients.data_client parameter to store previews.')
-        self._storage_name = kwargs.get('storage_name')
-        if self._storage_name is None:
-            raise CadcException('Visitor needs a storage_name parameter.')
-        self._metadata_reader = kwargs.get('metadata_reader')
-        self._preview_fqn = os.path.join(self._working_dir, self._storage_name.prev)
-        self._thumb_fqn = os.path.join(self._working_dir, self._storage_name.thumb)
+        self._strategy = kwargs.get('strategy')
+        if self._strategy is None:
+            raise CadcException('Visitor needs a strategy parameter.')
         self._delete_list = []
         # keys are uris, values are lists, where the 0th entry is a file name,
         # and the 1th entry is the artifact type
@@ -101,41 +122,117 @@ class LOTSSPreview(PreviewVisitor):
         self._report = None
         self._hdu_list = None
         self._ext = None
-        self._storage_name._file_name = 'preview.jpg'
-        self._input_fqn = self._storage_name.get_file_fqn(self._working_dir)
-        self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), self._storage_name.prev)
-        self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), self._storage_name.thumb)
+        # self._storage_name._file_name = 'preview.jpg'
+        self._logger.error(config.working_directory)
+        self._input_fqn = search_for_file(self._strategy, 'preview.jpg', config.working_directory)
+        self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.prev)
+        self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.thumb)
         self._logger.debug(self)
+
+    @property
+    def report(self):
+        return self._report
 
     def visit(self, observation):
         count = 0
-        if self._storage_name.product_id in observation.planes.keys():
-            plane = observation.planes[self._storage_name.product_id]
-            self._logger.debug(
-                f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.'
-            )
-            count += self._do_prev(plane, observation.observation_id)
-            self._augment_artifacts(plane)
-            self._delete_list_of_files()
-        self._logger.info(
-            f'Completed preview augmentation for {observation.observation_id}. Changed {count} artifacts.'
-        )
+        if self._strategy.product_id in observation.planes.keys():
+            plane = observation.planes[self._strategy.product_id]
+            if not self._strategy.prev_uri in plane.artifacts.keys():
+                self._logger.error(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
+                count += self._do_prev(plane, observation.observation_id)
+                self._augment_artifacts(plane)
+                self._delete_list_of_files()
+        self._logger.info(f'Changed {count} artifacts during preview augmentation for {observation.observation_id}.')
         self._report = {'artifacts': count}
         return observation
 
     def generate_plots(self, obs_id):
         count = 0
-        self._logger.debug(f'Begin generate_plots for {obs_id} from {self._metadata_reader._preview_uri}')
-        if self._metadata_reader._preview_uri:
-            http_get(self._metadata_reader._preview_uri, self._input_fqn)
+        self._logger.error(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
+        if self._strategy._preview_uri:
+            self._logger.error(self._input_fqn)
+            http_get(self._strategy._preview_uri, self._input_fqn)
             if os.path.exists(self._input_fqn):
                 self._logger.info(f'Retrieved {self._input_fqn}')
                 shutil.copy(self._input_fqn, self._preview_fqn)
-                self.add_preview(self._storage_name.prev_uri, self._storage_name.prev, ProductType.PREVIEW)
+                self.add_preview(self._strategy.prev_uri, self._strategy.prev, ProductType.PREVIEW)
                 count += self._gen_thumbnail()
                 if count == 1:
-                    self.add_preview(self._storage_name.thumb_uri, self._storage_name.thumb, ProductType.THUMBNAIL)
-        self._logger.debug(f'End generate_plots')
+                    self.add_preview(self._strategy.thumb_uri, self._strategy.thumb, ProductType.THUMBNAIL)
+        self._logger.error(f'End generate_plots')
+        return count
+
+    def add_preview(self, uri, f_name, product_type, release_type=None, mime_type='image/jpeg'):
+        preview_meta = PreviewMeta(f_name, product_type, release_type, mime_type)
+        self._previews[uri] = preview_meta
+
+    def add_to_delete(self, fqn):
+        self._delete_list.append(fqn)
+
+    def _augment_artifacts(self, plane):
+        """Add/update the artifact metadata in the plane."""
+        for uri, entry in self._previews.items():
+            temp = None
+            if uri in plane.artifacts:
+                temp = plane.artifacts[uri]
+            f_name = entry.f_name
+            product_type = entry.product_type
+            release_type = self._release_type
+            if self._release_type is None:
+                release_type = entry.release_type
+            if entry.product_type == ProductType.THUMBNAIL:
+                fqn = self._thumb_fqn
+            else:
+                fqn = self._preview_fqn
+            plane.artifacts[uri] = get_artifact_metadata(fqn, product_type, release_type, uri, temp)
+
+    def _delete_list_of_files(self):
+        """Clean up files on disk after."""
+        # cadc_client will be None if executing a ScrapeModify task, so leave the files behind so the user can see
+        # them on disk.
+        if self._clients is not None and self._clients.data_client is not None:
+            for entry in self._delete_list:
+                if os.path.exists(entry):
+                    self._logger.warning(f'Deleting {entry}')
+                    os.unlink(entry)
+
+    def _do_prev(self, plane, obs_id):
+        self.generate_plots(obs_id)
+        if self._hdu_list is not None:
+            # astropy says https://docs.astropy.org/en/stable/io/fits/index.html#working-with-large-files
+            self._hdu_list.close()
+            del self._hdu_list[self._ext].data
+            del self._hdu_list
+        self._store_smalls()
+        return len(self._previews)
+
+    def _store_smalls(self):
+        if self._clients is not None and self._clients.data_client is not None:
+            for uri, entry in self._previews.items():
+                self._clients.data_client.put(self._working_dir, uri)
+
+    def _gen_thumbnail(self):
+        self._logger.debug(f'Generating thumbnail {self._thumb_fqn}.')
+        count = 0
+        if os.path.exists(self._preview_fqn):
+            # keep import local
+            import matplotlib.image as image
+
+            thumb = image.thumbnail(self._preview_fqn, self._thumb_fqn, scale=0.25)
+            if thumb is not None:
+                count = 1
+        else:
+            self._logger.warning(f'Could not find {self._preview_fqn} for thumbnail generation.')
+        return count
+
+    def _save_figure(self):
+        self.add_to_delete(self._preview_fqn)
+        count = 1
+        self.add_preview(self._strategy.prev_uri, self._strategy.prev, ProductType.PREVIEW, ReleaseType.DATA)
+        count += self._gen_thumbnail()
+        if count == 2:
+            self.add_preview(self._strategy.thumb_uri, self._strategy.thumb, ProductType.THUMBNAIL, ReleaseType.META)
+            self.add_to_delete(self._thumb_fqn)
         return count
 
 

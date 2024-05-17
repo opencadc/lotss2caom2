@@ -71,9 +71,9 @@ import shutil
 from os.path import basename
 from caom2pipe.caom_composable import get_all_artifact_keys
 from caom2pipe.manage_composable import read_obs_from_file
-from lotss2caom2.main_app import LOTSSName
-from lotss2caom2.metadata_reader import LOTSSDR2MetadataReader
 from lotss2caom2.preview_augmentation import visit
+from lotss2caom2 import lotss_execute
+
 from mock import Mock, patch
 import helpers
 
@@ -84,7 +84,7 @@ def pytest_generate_tests(metafunc):
 
 
 @patch('lotss2caom2.preview_augmentation.http_get')
-@patch('lotss2caom2.metadata_reader.http_get')
+@patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, test_name):
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
@@ -103,19 +103,18 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
 
     http_get_mock.side_effect = _http_get_tar_mock
     preview_get_mock.side_effect = Mock()
-    observation = read_obs_from_file(f'{test_name}/{basename(test_name)}.expected.xml')
+    observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 8, f'pre-condition artifact count {len(artifact_keys)}'
-    storage_name = LOTSSName(test_name)
-    test_reader = LOTSSDR2MetadataReader(clients_mock, test_config.http_get_timeout)
-    test_reader.set(storage_name)
-    kwargs = {
-        'working_directory': test_name,
-        'storage_name': storage_name,
-        'metadata_reader': test_reader,
-        'config': test_config,
-    }
-    observation = visit(observation, **kwargs)
+    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, http_get_timeout=None)
+    expander.expand(test_name)
+    test_config.working_directory = test_name
+    for hierarchy in expander.hierarchies.values():
+        kwargs = {
+            'strategy': hierarchy,
+            'config': test_config,
+        }
+        observation = visit(observation, **kwargs)
 
     artifact_keys = get_all_artifact_keys(observation)
-    assert len(artifact_keys) == 10, f'wrong number of artifacts {len(artifact_keys)}'
+    assert len(artifact_keys) == 12, f'wrong number of artifacts {len(artifact_keys)}'
