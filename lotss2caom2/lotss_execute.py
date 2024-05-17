@@ -83,9 +83,10 @@ from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
+from lotss2caom2 import fits2caom2_augmentation, preview_augmentation
 
 
-META_VISITORS = []
+META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
 DATA_VISITORS = []
 
 
@@ -155,8 +156,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
     """This class takes one execution unit, and does the work, usually external to CADC, to make the HierarchyStratgy
     instances for it."""
 
-    def __init__(self, clients, http_get_timeout):
-        super().__init__(clients)
+    def __init__(self, clients, config):
+        super().__init__(clients, config)
         self._service = clients.py_vo_tap_client
         self._session = clients.https_session
         self._mosaic_id = None
@@ -168,7 +169,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._preview_uri = None
         # the URL that links to the tar of the FITS headers from the related_products URI
         self._headers_uri = None
-        self._http_get_timeout = http_get_timeout
+        self._http_get_timeout = config.http_get_timeout
 
     @property
     def mosaic_uri(self):
@@ -189,10 +190,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         if len(results) == 1:
             self._mosaic_id = mosaic_id
             self._mosaic_uri = results[0]['accref']
-            # self._mosaic_metadata = [results[0]]
             self._mosaic_metadata = results[0]
             strategy = LOTSSHierarchyStrategy(f'{self._mosaic_uri}/mosaic.fits', self._mosaic_id)
-            # strategy.metadata = [results[0]]
             strategy.metadata = [results[0]]
             strategy._mosaic_metadata = self._mosaic_metadata
             self._hierarchies[strategy.file_uri] = strategy
@@ -270,7 +269,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         self._logger.warning(f'Unexpected file header {entry}')
         self._logger.debug('End _get_headers_metadata')
 
-    def expand(self, entry):
+    def _expand(self, entry):
         self._logger.debug(f'Begin expand for {entry}')
         mosaic_id = basename(urlparse(entry).path)
         self._get_mosaic_tap_metadata(mosaic_id)
@@ -278,19 +277,15 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._get_headers_metadata()
         for hierarchy in self._hierarchies.values():
             hierarchy._preview_uri = self._preview_uri
-        self._logger.debug('End expand')
+        self._logger.debug(f'End expand with {len(self._hierarchies)} hierarchies.')
+        return self._hierarchies
 
     def set(self, entry):
         # this is here so that the CaomExecutor call doesn't fall over
         self._logger.debug(f'set for {entry}')
 
-    def unset(self, keys):
-        for key in keys:
-            self._hierarchies.pop(key)
-            self._logger.debug(f'Removing {key} from list of hierarchies.')
 
-
-class TodoExpanderRunner(TodoRunner):
+class StrategyTodoRunner(TodoRunner):
 
     def __init__(self, config, organizer, data_sources, observable):
         super().__init__(
@@ -337,6 +332,8 @@ class TodoExpanderRunner(TodoRunner):
 
 def execute():
     logging.debug('Begin execute')
+    # TODO - should I move the "get_executors" call into the Config constructor? they have to happen right after
+    # each other anyway
     config = Config()
     config.get_executors()
     StorageName.collection = config.collection
@@ -345,16 +342,15 @@ def execute():
     set_logging(config)
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)
-    strategy_context = LOTSSHierarchyStrategyContext(clients, config.http_get_timeout)
+    strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
     data_source = TodoFileDataSource(config)
     # TODO - this would need to be consistent between data_sources
     organizer.choose(META_VISITORS, DATA_VISITORS)
-    runner = TodoExpanderRunner(
+    runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,
         data_sources=[data_source],
-        # expander=expander,
         observable=observable,
     )
     result = runner.run()
@@ -374,15 +370,14 @@ def remote_execute():
     set_logging(config)
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)
-    strategy_context = LOTSSHierarchyStrategyContext(clients, config.http_get_timeout)
+    strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
     data_source = ASTRONPyVODataSource(config, clients)
     organizer.choose(META_VISITORS, DATA_VISITORS)
-    runner = TodoExpanderRunner(
+    runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,
         data_sources=[data_source],
-        # expander=expander,
         observable=observable,
     )
     result = runner.run()

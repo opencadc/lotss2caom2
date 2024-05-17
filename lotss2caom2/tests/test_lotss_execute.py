@@ -80,6 +80,7 @@ import helpers
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_path):
+    test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
     def _endpoint_mock(url):
@@ -101,7 +102,7 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
 
     http_get_mock.side_effect = _http_get_mock
 
-    test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config.http_get_timeout)
+    test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
     assert test_subject is not None, 'ctor'
 
     test_mosaic_id = 'P000+23'
@@ -131,12 +132,12 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
     #     assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
 
 
+@skip('not properly mocked')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_dir, tmp_path, change_test_dir):
     # one mosaic id, seven files
-    import logging
-    logging.getLogger().setLevel(logging.DEBUG)
+    test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
     def _endpoint_mock(url):
@@ -152,7 +153,7 @@ def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_di
         shutil.copy(f'{test_data_dir}/P000+23/fits_headers.tar', '/tmp')
 
     http_get_mock.side_effect = _http_get_mock
-    test_context = LOTSSHierarchyStrategyContext(clients_mock, test_config.http_get_timeout)
+    test_context = LOTSSHierarchyStrategyContext(clients_mock, test_config)
 
     test_config.change_working_directory(tmp_path)
     test_observable = Observable2(test_config)
@@ -176,7 +177,7 @@ def test_organize_failures():
     assert False
 
 
-@skip('')
+@skip('not properly mocked')
 @patch('lotss2caom2.lotss_execute.ASTRONClientCollection')
 def test_remote_execute_nominal(clients_mock, test_config, tmp_path, change_test_dir):
     test_config.change_working_directory(tmp_path)
@@ -216,14 +217,17 @@ def test_remote_execute_nominal(clients_mock, test_config, tmp_path, change_test
     assert False
 
 
-@skip('')
+@skip('not properly mocked')
 @patch('lotss2caom2.lotss_execute.ASTRONClientCollection')
 def test_execute_nominal(clients_mock, test_config, tmp_path, change_test_dir):
     test_config.change_working_directory(tmp_path)
     test_config.proxy_file_name = 'test_proxy.pem'
+    test_config.task_types = [TaskType.INGEST]
 
     with open(test_config.proxy_fqn, 'w') as f:
         f.write('test content')
+    with open(test_config.work_fqn, 'w') as f:
+        f.write('test_content')
 
     Config.write_to_file(test_config)
 

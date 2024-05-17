@@ -92,9 +92,8 @@ def pytest_generate_tests(metafunc):
 
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_main_app(clients_mock, http_get_mock, test_name, test_config, test_data_dir):
-    import logging
-    # logging.getLogger().setLevel(logging.DEBUG)
+def test_main_app(clients_mock, http_get_mock, test_name, test_config, tmp_path):
+    test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
     def _endpoint_mock(url):
@@ -119,7 +118,7 @@ def test_main_app(clients_mock, http_get_mock, test_name, test_config, test_data
     observation = None
     if os.path.exists(in_fqn):
         observation = mc.read_obs_from_file(in_fqn)
-    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, http_get_timeout=None)
+    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     for hierarchy in expander.hierarchies.values():
         kwargs = {

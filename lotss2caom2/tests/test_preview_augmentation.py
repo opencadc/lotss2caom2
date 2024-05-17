@@ -86,7 +86,8 @@ def pytest_generate_tests(metafunc):
 @patch('lotss2caom2.preview_augmentation.http_get')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, test_name):
+def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, tmp_path, test_name):
+    test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
     def _endpoint_mock(url):
@@ -106,7 +107,7 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
     observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 8, f'pre-condition artifact count {len(artifact_keys)}'
-    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, http_get_timeout=None)
+    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     test_config.working_directory = test_name
     for hierarchy in expander.hierarchies.values():
