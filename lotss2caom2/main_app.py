@@ -218,8 +218,8 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                 if chunk.position is not None and chunk.position.axis is not None:
                     # add the circular representation
                     center = ValueCoord2D(
-                        coord1=self._mosaic_metadata['centerAlpha'],
-                        coord2=self._mosaic_metadata['centerDelta'],
+                        coord1=self._mosaic_metadata['centeralpha'],
+                        coord2=self._mosaic_metadata['centerdelta'],
                     )
                     bounds = CoordCircle2D(
                         center,

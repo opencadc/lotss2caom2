@@ -336,9 +336,10 @@ def execute():
     # each other anyway
     config = Config()
     config.get_executors()
-    StorageName.collection = config.collection
-    StorageName.preview_scheme = config.preview_scheme
-    StorageName.scheme = config.scheme
+    HierarchyStrategy.collection = config.collection
+    HierarchyStrategy.preview_scheme = config.preview_scheme
+    HierarchyStrategy.scheme = config.scheme
+    HierarchyStrategy.data_source_extension = config.data_source_extensions
     set_logging(config)
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)
@@ -364,9 +365,10 @@ def remote_execute():
     logging.debug('Begin remote_execution')
     config = Config()
     config.get_executors()
-    StorageName.collection = config.collection
-    StorageName.preview_scheme = config.preview_scheme
-    StorageName.scheme = config.scheme
+    HierarchyStrategy.collection = config.collection
+    HierarchyStrategy.preview_scheme = config.preview_scheme
+    HierarchyStrategy.scheme = config.scheme
+    HierarchyStrategy.data_source_extension = config.data_source_extensions
     set_logging(config)
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)

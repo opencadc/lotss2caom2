@@ -87,6 +87,8 @@ def pytest_generate_tests(metafunc):
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, tmp_path, test_name):
+    import logging
+    # logging.getLogger().setLevel(logging.DEBUG)
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -100,10 +102,15 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
     clients_mock.https_session.get.side_effect = _endpoint_mock
 
     def _http_get_tar_mock(url, fqn, ignore_timeout):
-        shutil.copy(f'{test_name}/fits_headers.tar', fqn)
+        logging.error(url)
+        if url.endswith('preview=true'):
+            shutil.copy(f'{test_name}/preview.jpg', fqn)
+        else:
+            shutil.copy(f'{test_name}/fits_headers.tar', fqn)
 
     http_get_mock.side_effect = _http_get_tar_mock
-    preview_get_mock.side_effect = Mock()
+    preview_get_mock.side_effect = _http_get_tar_mock
+
     observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 8, f'pre-condition artifact count {len(artifact_keys)}'

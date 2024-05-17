@@ -106,8 +106,8 @@ class LOTSSPreview:
         self._logger = logging.getLogger(self.__class__.__name__)
         self._release_type = ReleaseType.META
         self._mime_type = 'image/jpeg'
-        config = kwargs.get('config')
-        if config is None:
+        self._config = kwargs.get('config')
+        if self._config is None:
             raise CadcException('Visitor needs a config parameter.')
         self._clients = kwargs.get('clients')
         if self._clients is None or self._clients.data_client is None:
@@ -116,18 +116,14 @@ class LOTSSPreview:
         if self._strategy is None:
             raise CadcException('Visitor needs a strategy parameter.')
         self._delete_list = []
-        # keys are uris, values are lists, where the 0th entry is a file name,
-        # and the 1th entry is the artifact type
+        # keys are uris, values are lists, where the 0th entry is a file name, and the 1st entry is the artifact type
         self._previews = {}
         self._report = None
         self._hdu_list = None
         self._ext = None
-        # self._storage_name._file_name = 'preview.jpg'
-        self._logger.error(config.working_directory)
-        self._input_fqn = search_for_file(self._strategy, 'preview.jpg', config.working_directory)
+        self._input_fqn = search_for_file(self._strategy, 'preview.jpg', self._strategy.working_directory)
         self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.prev)
         self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.thumb)
-        self._logger.debug(self)
 
     @property
     def report(self):
@@ -138,7 +134,7 @@ class LOTSSPreview:
         if self._strategy.product_id in observation.planes.keys():
             plane = observation.planes[self._strategy.product_id]
             if not self._strategy.prev_uri in plane.artifacts.keys():
-                self._logger.error(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
+                self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
                 count += self._do_prev(plane, observation.observation_id)
                 self._augment_artifacts(plane)
                 self._delete_list_of_files()
@@ -148,10 +144,9 @@ class LOTSSPreview:
 
     def generate_plots(self, obs_id):
         count = 0
-        self._logger.error(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
+        self._logger.debug(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
         if self._strategy._preview_uri:
-            self._logger.error(self._input_fqn)
-            http_get(self._strategy._preview_uri, self._input_fqn)
+            http_get(self._strategy._preview_uri, self._input_fqn, self._config.http_get_timeout)
             if os.path.exists(self._input_fqn):
                 self._logger.info(f'Retrieved {self._input_fqn}')
                 shutil.copy(self._input_fqn, self._preview_fqn)
@@ -159,7 +154,7 @@ class LOTSSPreview:
                 count += self._gen_thumbnail()
                 if count == 1:
                     self.add_preview(self._strategy.thumb_uri, self._strategy.thumb, ProductType.THUMBNAIL)
-        self._logger.error(f'End generate_plots')
+        self._logger.debug(f'End generate_plots')
         return count
 
     def add_preview(self, uri, f_name, product_type, release_type=None, mime_type='image/jpeg'):
@@ -209,7 +204,7 @@ class LOTSSPreview:
     def _store_smalls(self):
         if self._clients is not None and self._clients.data_client is not None:
             for uri, entry in self._previews.items():
-                self._clients.data_client.put(self._working_dir, uri)
+                self._clients.data_client.put(self._strategy.working_directory, uri)
 
     def _gen_thumbnail(self):
         self._logger.debug(f'Generating thumbnail {self._thumb_fqn}.')
