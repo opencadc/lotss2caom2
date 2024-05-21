@@ -73,11 +73,11 @@ entry point that executes the workflow.
 
 import logging
 
-from os.path import basename, dirname
-from urllib.parse import urlparse
-from astropy import units
+# from os.path import basename, dirname
+# from urllib.parse import urlparse
+# from astropy import units
 
-from caom2 import Axis, SpatialWCS, CoordCircle2D, ValueCoord2D, CoordAxis2D
+from caom2 import CoordCircle2D, ProductType, ValueCoord2D
 from caom2pipe.astro_composable import get_geocentric_location
 from caom2pipe import caom_composable as cc
 
@@ -213,27 +213,53 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
 
     def _update_artifact(self, artifact):
         self._logger.debug(f'Begin _update_artifact for {artifact.uri}')
-        for part in artifact.parts.values():
-            for chunk in part.chunks:
-                if chunk.position is not None and chunk.position.axis is not None:
-                    # add the circular representation
-                    center = ValueCoord2D(
-                        coord1=self._mosaic_metadata['centeralpha'],
-                        coord2=self._mosaic_metadata['centerdelta'],
-                    )
-                    bounds = CoordCircle2D(
-                        center,
-                        # radius=((4.0 / 2.0) * units.arcsec).to(units.degree).value,
-                        # this is the wrong FoV, need to know how to calculate the correct value
-                        radius=(( 13.8817 / 2.0) * units.degree).value,
-                    )
-                    chunk.position.axis.bounds = bounds
-                    self._logger.debug(f'Updated bounds for {self._strategy.file_uri}')
+        naxis1 = self._headers[0].get('NAXIS1')
+        cdelt1 = self._headers[0].get('CDELT1')
+        crval1 = self._headers[0].get('CRVAL1')
+        crval2 = self._headers[0].get('CRVAL2')
+        if naxis1 and cdelt1 and crval1 and crval2:
+            for part in artifact.parts.values():
+                for chunk in part.chunks:
+                    if chunk.position is not None and chunk.position.axis is not None:
+                        # add the circular representation
+                        center = ValueCoord2D(
+                            # coord1=self._mosaic_metadata['centeralpha'],
+                            # coord2=self._mosaic_metadata['centerdelta'],
+                            coord1=crval1,
+                            coord2=crval2,
+                        )
+                        bounds = CoordCircle2D(
+                            center,
+                            # radius=((4.0 / 2.0) * units.arcsec).to(units.degree).value,
+                            # this is the wrong FoV, need to know how to calculate the correct value
+                            # radius=(( 13.8817 / 2.0) * units.degree).value,
+                            radius=( naxis1 * abs(cdelt1) / 2.0 )
+                        )
+                        chunk.position.axis.bounds = bounds
+                        self._logger.debug(f'Updated bounds for {self._strategy.file_uri}')
 
     def _update_plane(self, plane):
-        # TODO - clean up unnecessary execution
-        # self._logger.error(f'working on plane {plane.product_id}')
-        pass
+        if len(plane.artifacts) > 2:
+            mosaic_key = f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits'
+            if mosaic_key in plane.artifacts.keys():
+                mosaic_artifact = plane.artifacts[mosaic_key]
+                source_artifact = None
+                for artifact in plane.artifacts.values():
+                    if artifact.uri != mosaic_key and artifact.product_type not in []:
+                        source_artifact = artifact
+                        break
+
+                if mosaic_artifact and source_artifact:
+                    self._logger.error(f'Copy position from {source_artifact.uri} to {mosaic_artifact.uri}')
+                    source_chunk = source_artifact.parts['0'].chunks[0]
+                    mosaic_chunk = mosaic_artifact.parts['0'].chunks[0]
+                    if (
+                        source_chunk.position is not None 
+                        and source_chunk.position.axis is not None 
+                        and mosaic_chunk.position is not None 
+                        and mosaic_chunk.position.axis is not None 
+                    ):
+                        mosaic_chunk.position.axis.bounds = source_chunk.position.axis.bounds
 
 
 class DR2MosaicScience(DR2MosaicAuxiliaryMapping):
@@ -330,6 +356,31 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
         bp.set('Chunk.energy.axis.range.end.val', self._mosaic_metadata['bandpasslo'])
 
         self._logger.debug('Done accumulate_bp.')
+
+    def _update_plane(self, plane):
+        if len(plane.artifacts) > 1:
+            mosaic_artifact = None
+            source_artifact = None
+            for artifact in plane.artifacts.values():
+                if artifact.uri == self._strategy.file_name:
+                    mosaic_artifact = artifact
+                else:
+                    if artifact.product_type not in [ProductType.PREVIEW, ProductType.THUMBNAIL]:
+                        source_artifact = artifact
+                if mosaic_artifact and source_artifact:
+                    break
+
+            if mosaic_artifact and source_artifact:
+                self._logger.error(f'Copy position from {source_artifact.uri} to {mosaic_artifact.uri}')
+                source_chunk = source_artifact.parts['0'].chunks[0]
+                mosaic_chunk = mosaic_artifact.parts['0'].chunks[0]
+                if (
+                    source_chunk.position is not None 
+                    and source_chunk.position.axis is not None 
+                    and mosaic_chunk.position is not None 
+                    and mosaic_chunk.position.axis is not None 
+                ):
+                    mosaic_chunk.position.axis.bounds = source_chunk.position.axis.bounds
 
 
 class DR2MosaicSciencePolarization(DR2MosaicScience):

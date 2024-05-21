@@ -78,7 +78,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.93</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -178,7 +178,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.93</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -300,7 +300,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -400,7 +400,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -494,7 +494,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -573,7 +573,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -653,7 +653,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
@@ -748,7 +748,7 @@
                             <caom2:coord1>124.678</caom2:coord1>
                             <caom2:coord2>61.9895</caom2:coord2>
                           </caom2:center>
-                          <caom2:radius>6.94085</caom2:radius>
+                          <caom2:radius>1.9299999999999693</caom2:radius>
                         </caom2:circle>
                       </caom2:bounds>
                       <caom2:function>
