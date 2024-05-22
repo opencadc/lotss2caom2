@@ -68,6 +68,7 @@
 
 from os.path import dirname, join, realpath
 from caom2pipe.manage_composable import Config, StorageName
+from caom2pipe.strategy_composable import HierarchyStrategy
 import pytest
 
 COLLECTION = 'LOTSS'
@@ -83,8 +84,12 @@ def test_config():
     config.scheme = SCHEME
     config.logging_level = 'INFO'
     StorageName.collection = config.collection
+    HierarchyStrategy.collection = config.collection
     StorageName.preview_scheme = config.preview_scheme
+    HierarchyStrategy.preview_scheme = config.preview_scheme
     StorageName.scheme = config.scheme
+    HierarchyStrategy.scheme = config.scheme
+    HierarchyStrategy.data_source_extensions = config.data_source_extensions
     return config
 
 

@@ -10,6 +10,12 @@ WORKDIR /usr/src/app
 ARG OPENCADC_BRANCH=main
 ARG OPENCADC_REPO=opencadc
 
+RUN git clone https://github.com/${OPENCADC_REPO}/caom2tools.git && \
+    cd caom2tools && \
+    git checkout ${OPENCADC_BRANCH} && \
+    pip install ./caom2utils && \
+    cd ..
+
 RUN pip install git+https://github.com/${OPENCADC_REPO}/caom2pipe@${OPENCADC_BRANCH}#egg=caom2pipe
 
 RUN pip install git+https://github.com/${OPENCADC_REPO}/lotss2caom2@${OPENCADC_BRANCH}#egg=lotss2caom2
