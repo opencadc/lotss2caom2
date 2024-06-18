@@ -69,6 +69,7 @@
 import logging
 import tarfile
 import traceback
+from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 from os import listdir, unlink
 from os.path import basename, dirname, exists
@@ -78,7 +79,7 @@ from caom2 import ProductType
 from caom2pipe.astro_composable import get_vo_table_session, make_headers_from_file
 from caom2pipe.data_source_composable import TodoFileDataSource
 from caom2pipe.execute_composable import OrganizeWithContext
-from caom2pipe.manage_composable import Config, http_get, Observable2, StorageName
+from caom2pipe.manage_composable import Config, http_get, Observable2, query_endpoint_session
 from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
@@ -117,7 +118,6 @@ class LOTSSHierarchyStrategy(HierarchyStrategy):
         result = ProductType.SCIENCE
         if 'rms' in value:
             result = ProductType.NOISE
-        # elif 'blanked' in value or 'pybdsmmask' in value or 'resid' in value:
         elif 'pybdsmmask' in value or 'resid' in value:
             result = ProductType.AUXILIARY
         elif 'weights' in value:
@@ -152,6 +152,38 @@ class LOTSSHierarchyStrategy(HierarchyStrategy):
         self._obs_id = f'{self._mosaic_id}_dr2'
 
 
+class LOTSSRawHierarchyStrategy(HierarchyStrategy):
+    """
+    The unit of work for a StorageName is the Observation ID. The file names are all found in the
+    MetadataReader specialization based on that Observation ID.
+
+    The destination URIs are set in the MetadataReader, and the file_uri is set to make preview generation work.
+
+    Naming rules:
+    - support mixed-case file name storage, and mixed-case obs id values
+    - support uncompressed files in storage
+
+    observationID example: P124+62
+    """
+
+    LOTSS_NAME_PATTERN = '*'
+
+    def __init__(self, obs_id, file_name):
+        super().__init__(entry=file_name, source_names=[file_name], metadata=None, file_info=None)
+        self._obs_id = obs_id
+        self._product_id = obs_id
+        self._logger.debug(self)
+
+    def get_artifact_product_type(self, value):
+        return ProductType.SCIENCE
+
+    def set_obs_id(self, **kwargs):
+        pass
+
+    def set_product_id(self, **kwargs):
+        pass
+
+
 class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
     """This class takes one execution unit, and does the work, usually external to CADC, to make the HierarchyStratgy
     instances for it."""
@@ -169,6 +201,9 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._preview_uri = None
         # the URL that links to the tar of the FITS headers from the related_products URI
         self._headers_uri = None
+        # the progenitor link to the raw data
+        self._provenance_uri = None
+        self._raw_table = {}
         self._http_get_timeout = config.http_get_timeout
 
     @property
@@ -222,6 +257,9 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                             self._hierarchies[strategy.file_uri] = strategy
                             # storage_name._destination_uris.append(access_url)
                             self._logger.debug(f'Found FITS URL {access_url}')
+                    elif 'ObservationId=' in access_url:
+                        self._provenance_uri = access_url
+                        self._logger.debug(f'Found Provenance at {self._provenance_uri}')
 
                 # Accomodate the difference between the 6 files in the VOTable listing, and the 7 fits headers in the
                 # tar file.
@@ -259,7 +297,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                     elif entry.endswith('.0.hdr'):
                         found_uri = f'{dirname(self._headers_uri)}/{basename(entry).replace(".0.hdr", "")}'
                     if found_uri:
-                        # self._headers[found_uri] = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy = LOTSSHierarchyStrategy(found_uri, self._mosaic_id)
                         temp_strategy.metadata = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy._mosaic_metadata = self._mosaic_metadata
@@ -269,6 +306,51 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         self._logger.warning(f'Unexpected file header {entry}')
         self._logger.debug('End _get_headers_metadata')
 
+    def _get_provenance_metadata(self):
+        """Retrieve available metadata for raw inputs."""
+        if self._provenance_uri:
+            self._logger.debug(f'Begin _get_provenance_metadata from {self._provenance_uri}')
+            self._retrieve_provenance_metadata()
+            sas_id = self._provenance_uri.split('=')[-1]
+            for index, row in enumerate(self._raw_table):
+                if len(row) > 0:
+                    if row.get('Filename'):
+                        strategy = LOTSSRawHierarchyStrategy(sas_id, row.get('Filename'))
+                    else:
+                        strategy = LOTSSRawHierarchyStrategy(sas_id, str(index))
+                    strategy.metadata = row
+                    self._hierarchies[strategy.file_uri] = strategy
+            self._logger.debug('End _get_provenance_metadata')
+
+    def _retrieve_provenance_metadata(self):
+        self._logger.debug(f'Begin _retrieve_provenance_metadata')
+        response = None
+        try:
+            response = query_endpoint_session(self._provenance_uri, self._session)
+            response.raise_for_status()
+            if response is None:
+                self._logger.warning(f'No response from {self._provenance_uri}.')
+            else:
+                table = self._parse_html_string_for_table(response.content, 'result_table_AveragingPipeline')
+                if table:
+                    source_data_product = table[-1].get('Source DataProduct')
+                    if source_data_product:
+                        self._logger.info(f'Search {source_data_product} for raw metadata.')
+                        response = query_endpoint_session(source_data_product, self._session)
+                        response.raise_for_status()
+                        if response is None:
+                            self._logger.warning(f'No response from {source_data_product}')
+                        else:
+                            self._raw_table = self._parse_html_string_for_table(
+                                response.content, 'result_table_CorrelatedDataProduct'
+                            )
+                else:
+                    self._logger.warning(f'Cannot find result_table_averagingPipeline in {self._provenance_uri}')
+        finally:
+            if response is not None:
+                response.close()
+        self._logger.debug(f'End _retrieve_provenance_metadata')
+
     def _expand(self, entry):
         self._logger.debug(f'Begin expand for {entry}')
         mosaic_id = basename(urlparse(entry).path)
@@ -277,8 +359,26 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._get_headers_metadata()
         for hierarchy in self._hierarchies.values():
             hierarchy._preview_uri = self._preview_uri
+        self._get_provenance_metadata()
         self._logger.debug(f'End expand with {len(self._hierarchies)} hierarchies.')
         return self._hierarchies
+
+    def _parse_html_string_for_table(self, html_string, table_id):
+        result = []
+        soup = BeautifulSoup(html_string, 'html.parser')
+        table = soup.find(id=table_id)
+        if table:
+            headers = [header.text.strip() for header in table.find_all('th')]
+            # return [{headers[ii]: cell.text for ii, cell in enumerate(row.find_all('td'))} for row in table.find_all('tr')]
+            for row in table.find_all('tr'):
+                temp = {}
+                for ii, cell in enumerate(row.find_all('td')):
+                    if cell.css.select('a[href]'):
+                        temp[headers[ii]] = cell.css.select('a[href]')[0].get('href')
+                    else:
+                        temp[headers[ii]] = cell.text
+                result.append(temp)
+        return result
 
     def set(self, entry):
         # this is here so that the CaomExecutor call doesn't fall over

@@ -78,7 +78,8 @@ import logging
 # from astropy import units
 
 from caom2 import CoordCircle2D, ProductType, ValueCoord2D
-from caom2pipe.astro_composable import get_geocentric_location
+from caom2utils.blueprints import _to_float
+from caom2pipe.astro_composable import get_datetime_mjd, get_geocentric_location
 from caom2pipe import caom_composable as cc
 
 
@@ -223,18 +224,10 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                     if chunk.position is not None and chunk.position.axis is not None:
                         # add the circular representation
                         center = ValueCoord2D(
-                            # coord1=self._mosaic_metadata['centeralpha'],
-                            # coord2=self._mosaic_metadata['centerdelta'],
                             coord1=crval1,
                             coord2=crval2,
                         )
-                        bounds = CoordCircle2D(
-                            center,
-                            # radius=((4.0 / 2.0) * units.arcsec).to(units.degree).value,
-                            # this is the wrong FoV, need to know how to calculate the correct value
-                            # radius=(( 13.8817 / 2.0) * units.degree).value,
-                            radius=( naxis1 * abs(cdelt1) / 2.0 )
-                        )
+                        bounds = CoordCircle2D(center, radius=( naxis1 * abs(cdelt1) / 2.0 ))
                         chunk.position.axis.bounds = bounds
                         self._logger.debug(f'Updated bounds for {self._strategy.file_uri}')
 
@@ -245,7 +238,7 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                 mosaic_artifact = plane.artifacts[mosaic_key]
                 source_artifact = None
                 for artifact in plane.artifacts.values():
-                    if artifact.uri != mosaic_key and artifact.product_type not in []:
+                    if artifact.uri != mosaic_key and len(artifact.parts) > 0:
                         source_artifact = artifact
                         break
 
@@ -284,6 +277,7 @@ class DR2MosaicScience(DR2MosaicAuxiliaryMapping):
         bp.set('Chunk.position.resolution', 0.001666)
 
         self._logger.debug('Done accumulate_bp.')
+
 
 class DR2MosaicScienceLow(DR2MosaicScience):
     def __init__(self, strategy, clients, observable, observation, config, dest_uri):
@@ -365,7 +359,7 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
                 if artifact.uri == self._strategy.file_name:
                     mosaic_artifact = artifact
                 else:
-                    if artifact.product_type not in [ProductType.PREVIEW, ProductType.THUMBNAIL]:
+                    if len(artifact.parts) > 0:
                         source_artifact = artifact
                 if mosaic_artifact and source_artifact:
                     break
@@ -419,11 +413,142 @@ class DR2MosaicSciencePolarizationLow(DR2MosaicSciencePolarization):
         self._logger.debug('Done accumulate_bp.')
 
 
+class DR2Raw(cc.TelescopeMapping2):
+    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
+        super().__init__(strategy, clients, observable, observation, config)
+        self._dest_uri = dest_uri
+
+    def accumulate_blueprint(self, bp):
+        """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level.
+
+        hard-coded values are from https://science.astron.nl/sdc/astron-data-explorer/data-releases/lotss-dr2/
+        """
+        self._logger.debug('Begin accumulate_bp.')
+        super().accumulate_blueprint(bp)
+
+        release_date = '2023-01-01T00:00:00.000'
+        bp.set('Observation.metaRelease', release_date)
+        bp.set('Observation.type', 'OBJECT')
+        bp.set('Observation.proposal.id', 'LoTSS')
+        bp.set('Observation.proposal.pi', 'T.W. Shimwell')
+        bp.set('Observation.proposal.title', 'LOFAR Two-metre Sky Survey')
+        bp.set('Observation.proposal.keywords', '_get_observation_proposal_keywords()')
+        bp.set('Observation.target.type', 'field')
+
+        telescope_name = 'LOFAR'
+        bp.set('Observation.telescope.name', telescope_name)
+        x, y, z = get_geocentric_location(telescope_name)
+        bp.set('Observation.telescope.geoLocationX', x)
+        bp.set('Observation.telescope.geoLocationY', y)
+        bp.set('Observation.telescope.geoLocationZ', z)
+
+        bp.set('Plane.metaRelease', release_date)
+        bp.set('Plane.dataRelease', release_date)
+        bp.set('Plane.calibrationLevel', 1)
+        bp.set('Plane.dataProductType', 'measurements')
+        bp.set('Plane.provenance.project', 'LoTSS DR2')
+        bp.set('Plane.provenance.producer', self._strategy.metadata.get('Creator'))
+        bp.set('Plane.provenance.lastExecuted', '')
+        # TODO
+        # bp.set('Plane.provenance.reference', self._mosaic_metadata.get('related_products'))
+
+        bp.set('Artifact.productType', self._strategy.get_artifact_product_type(self._dest_uri))
+        bp.set('Artifact.releaseType', 'data')
+
+        bp.configure_position_axes((1, 2))
+        bp.set('Chunk.position.axis.axis1.ctype', 'RA---SIN')
+        bp.set('Chunk.position.axis.axis1.cunit', 'deg')
+        bp.set('Chunk.position.axis.axis2.ctype', 'DEC--SIN')
+        bp.set('Chunk.position.axis.axis2.cunit', 'deg')
+        bp.add_attribute('Chunk.position.axis.function.cd11', 'CDELT1')
+        bp.set('Chunk.position.axis.function.cd12', 0.0)
+        bp.set('Chunk.position.axis.function.cd21', 0.0)
+        bp.add_attribute('Chunk.position.axis.function.cd22', 'CDELT2')
+        bp.set('Chunk.position.coordsys', 'ICRS')
+
+        bp.configure_energy_axis(3)
+        bp.set('Chunk.energy.axis.axis.ctype', 'WAVE')
+        bp.set('Chunk.energy.axis.axis.cunit', 'MHz')
+        # Central Frequency
+        # Channel Width
+        # self._logger.error(self._strategy.metadata)
+        central_frequency = _to_float(self._strategy.metadata.get('Central Frequency [MHz]'))
+        channel_width = _to_float(self._strategy.metadata.get('Channel Width [Hz]')) / 1*10e6  # Central Frequency units
+        bp.set('Chunk.energy.axis.range.start.pix', 0.5)
+        bp.set('Chunk.energy.axis.range.start.val', central_frequency - (channel_width / 2.0))
+        bp.set('Chunk.energy.axis.range.end.pix', 1.5)
+        bp.set('Chunk.energy.axis.range.end.val',  central_frequency + (channel_width / 2.0))
+        bp.set('Chunk.energy.resolvingPower', self._strategy.metadata.get('Integration Interval [s]'))
+        # TODO - guess
+        bp.set('Chunk.energy.specsys', 'TOPOCENT')
+
+        bp.configure_time_axis(4)
+        bp.set('Chunk.time.axis.axis.ctype', 'TIME')
+        bp.set('Chunk.time.axis.axis.cunit', 'd')
+        bp.set('Chunk.time.axis.range.start.pix', 0.5)
+        start_mjd = get_datetime_mjd(self._strategy.metadata.get('Start Time'))
+        if start_mjd:
+            bp.set('Chunk.time.axis.range.start.val', start_mjd.value)
+        bp.set('Chunk.time.axis.range.end.pix', 1.5)
+        end_mjd = get_datetime_mjd(self._strategy.metadata.get('End Time'))
+        if end_mjd:
+            bp.set('Chunk.time.axis.range.end.val', end_mjd.value)
+        bp.set('Chunk.time.resolution', _to_float(self._strategy.metadata.get('Duration [s]')) / (24.0 * 3600.0) )
+        bp.set('Chunk.time.timesys', 'UTC')
+
+        self._logger.debug('Done accumulate_bp.')
+
+    def update(self):
+        """Called to fill multiple CAOM model elements and/or attributes (an n:n relationship between TDM attributes
+        and CAOM attributes).
+        """
+        super().update()
+        for plane in self._observation.planes.values():
+            for artifact in plane.artifacts.values():
+                for part in artifact.parts.values():
+                    for chunk in part.chunks:
+                        # no cut-out support for any axes
+                        chunk.position_axis_1 = 1
+                        chunk.position_axis_2 = 2
+                        chunk.time_axis = None
+                        chunk.energy_axis = None
+                        chunk.naxis = 0
+        return self._observation
+
+    def _get_observation_proposal_keywords(self, ext):
+        # values from https://www.aanda.org/articles/aa/full_html/2022/03/aa42484-21/aa42484-21.html
+        # default keyword setting splits on whitespace
+        temp = set()
+        temp.add('surveys')
+        temp.add('catalogs')
+        temp.add('radio continuum: general')
+        temp.add('techniques: image processing')
+        return temp
+
+    def _update_artifact(self, artifact):
+        self._logger.debug(f'Begin _update_artifact for {artifact.uri}')
+        naxis1 = self._strategy.metadata.get('TODO')
+        cdelt1 = self._strategy.metadata.get('TODO')
+        crval1 = self._strategy.metadata.get('Right Ascension [degrees]')
+        crval2 = self._strategy.metadata.get('Declination [degrees]')
+        if naxis1 and cdelt1 and crval1 and crval2:
+            for part in artifact.parts.values():
+                for chunk in part.chunks:
+                    if chunk.position is not None and chunk.position.axis is not None:
+                        # add the circular representation
+                        center = ValueCoord2D(coord1=crval1, coord2=crval2)
+                        bounds = CoordCircle2D(center, radius=(naxis1 * abs(cdelt1) / 2.0 ))
+                        chunk.position.axis.bounds = bounds
+                        self._logger.debug(f'Updated bounds for {self._strategy.file_uri}')
+
+
 def mapping_factory(strategy, clients, observable, observation, config, dest_uri):
     # logging.error('\n'.join(ii for ii in storage_name._headers.keys()))
     # logging.error(dest_uri)
     result = None
-    if dest_uri == f'{strategy.scheme}:{strategy.collection}/{strategy.mosaic_id}/mosaic.fits':
+    if dest_uri.endswith('MS'):
+        result = DR2Raw(strategy, clients, observable, observation, config, dest_uri)
+    elif dest_uri == f'{strategy.scheme}:{strategy.collection}/{strategy.mosaic_id}/mosaic.fits':
         result = DR2Mosaic(strategy, clients, observable, observation, config, dest_uri)
     else:
         if strategy.product_id.endswith('low'):

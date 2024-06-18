@@ -95,7 +95,10 @@ class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
         )
 
     def _get_parser(self, blueprint, uri):
-        if uri == f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits':
+        if (
+            uri.endswith('MS')
+            or uri == f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits'
+        ):
             parser = ContentParser(blueprint, uri)
         else:
             parser = FitsParser(self._strategy.metadata, blueprint, uri)
@@ -128,7 +131,7 @@ class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
                         )
                     else:
                         self._logger.debug('Build a DerivedObservation')
-                        algorithm_name =(
+                        algorithm_name = (
                             'composite'
                             if blueprint._get('Observation.algorithm.name') == 'exposure'
                             else blueprint._get('Observation.algorithm.name')

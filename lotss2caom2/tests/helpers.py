@@ -210,3 +210,5 @@ def _get_vo_mock(_):
     result.close = lambda: None
     result.text = content
     return result
+
+# https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&source_pipeline=99977D292AE15486E053164A17ACDB1B&object_type=AveragingPipeline

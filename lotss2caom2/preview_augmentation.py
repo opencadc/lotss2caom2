@@ -170,7 +170,6 @@ class LOTSSPreview:
             temp = None
             if uri in plane.artifacts:
                 temp = plane.artifacts[uri]
-            f_name = entry.f_name
             product_type = entry.product_type
             release_type = self._release_type
             if self._release_type is None:

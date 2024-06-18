@@ -77,9 +77,10 @@ from unittest import skip
 import helpers
 
 
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_path):
+def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_data_dir, tmp_path):
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -102,13 +103,27 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
 
     http_get_mock.side_effect = _http_get_mock
 
+    def _session_mock(url, _):
+        result = type('response', (), {})()
+        result.close = lambda: None
+        result.raise_for_status = lambda: None
+        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
+            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
+                result.content = f.read()
+        else:
+            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
+                result.content = f.read()
+        return result
+    
+    session_mock.side_effect = _session_mock
+
     test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
     assert test_subject is not None, 'ctor'
 
     test_mosaic_id = 'P000+23'
     test_subject.expand(test_mosaic_id)
 
-    assert len(test_subject.hierarchies) == 8, f'wrong header length {len(test_subject.hierarchies)}'
+    assert len(test_subject.hierarchies) == 251, f'wrong header length {len(test_subject.hierarchies)}'
     # assert len(test_subject.storage_names) == 8, f'wrong uris len {len(test_subject.storage_names)}'
 
     test_uri_prefix = f'{test_config.scheme}:{test_config.collection}/{test_mosaic_id}/'
@@ -120,6 +135,7 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
         assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
         assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
         assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
+        assert f'{test_config.scheme}:{test_config.collection}/L762093_SAP001_SB243_uv.MS' in check, f'{check.__class__.__name__} mosaic.rms'
 
     # test_uri_prefix = 'https://lofar-webdav.grid.surfsara.nl:2881/P000+23/'
     # for check in [test_subject.headers.keys()]:
