@@ -212,3 +212,113 @@ def _get_vo_mock(_):
     return result
 
 # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&source_pipeline=99977D292AE15486E053164A17ACDB1B&object_type=AveragingPipeline
+
+
+def _get_db_query_mock():
+    results = []
+    from collections import namedtuple
+    CorrelatedDataProduct = namedtuple(
+        'CorrelatedDataProduct',
+        'data_product_id central_frequency channel_width start_time end_time ra dec file_name creator integration_interval duration file_format release_date project_name content_type content_checksum'
+    )
+    MinimalArtifact = namedtuple(
+        'MinimalArtifact',
+        'content_checksum',
+    )
+    with open(f'/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_664568.htm') as f:
+        content = f.read()
+
+    from bs4 import BeautifulSoup
+    from astropy.io import ascii
+    soup = BeautifulSoup(content, features='lxml')
+    table_header = soup.find_all('thead')
+    table_body = soup.find_all('tbody')
+    print(len(table_body))
+    print(table_body[3])
+    file_infos = {}
+    for bodies in table_body[2:]:
+        file_rows = bodies.find_all('tr')
+        file_name = None
+        content_checksum = None
+
+        for file_row in file_rows:
+            cell_content = file_row.find_all('td')
+            if cell_content[0].text == 'Filename':
+                file_name = cell_content[1].text
+            elif cell_content[0].text == 'Hash Md5':
+                content_checksum = f'md5:{cell_content[1].text}'
+
+        if file_name:
+            file_infos[file_name] = MinimalArtifact(content_checksum)
+
+    rows = table_body[0].findAll('tr')
+    # print(len(rows))
+    # html = ascii.HTML()
+    # print(len(table_header))
+    # print(table_header)
+    columns = table_header[0].text.split('\n')
+    for index, column in enumerate(columns):
+        # print(f'{index} {column}' )
+    # y = html.read(tables)
+    # print(dir(y))
+    # print(type(y))
+    # print(len(tables))
+    # print(len(table_body))
+    # print(type(table_body[0]))
+    # print(dir(table_body[0]))
+        for row in rows:
+
+            cells = row.findAll('td')
+            # print(len(cells))
+            # print(cells[0])
+            data_product_id = cells[6].text
+            central_frequency = cells[10].text
+            channel_width = cells[11].text
+            start_time = cells[14].text
+            end_time = cells[16].text
+            ra = cells[8].text
+            dec = cells[9].text
+            file_name = cells[27].text
+            creator = cells[3].text
+            integration_interval = cells[13].text
+            duration = cells[15].text
+            file_format = cells[26].text
+            release_date = cells[5].text
+            project_name = cells[2].text
+            content_type = cells[26].text
+
+            file_info = file_infos.get(file_name)
+            if file_info:
+                content_checksum = file_info.content_checksum
+
+            row_content = CorrelatedDataProduct(
+                data_product_id,
+                central_frequency,
+                channel_width,
+                start_time,
+                end_time,
+                ra,
+                dec,
+                file_name,
+                creator,
+                integration_interval,
+                duration,
+                file_format,
+                release_date,
+                project_name,
+                content_type,
+                content_checksum,
+            )
+            results.append(row_content)
+    # print(len(rows))
+    # for row in rows:
+    #     cells = row.findAll('td')
+    #     print(len(cells))
+        # print(f'::: {row}')
+    return results
+
+
+if __name__ == '__main__':
+   t =  _get_db_query_mock()
+   # print(t)
+   print(t[0].file_format)

@@ -71,7 +71,7 @@ import shutil
 from os.path import basename
 from caom2pipe.caom_composable import get_all_artifact_keys
 from caom2pipe.manage_composable import read_obs_from_file
-from lotss2caom2.preview_augmentation import visit
+from lotss2caom2.preview_augmentation import LOTSSPreview
 from lotss2caom2 import lotss_execute
 
 from mock import Mock, patch
@@ -88,6 +88,8 @@ def test_preview_augmentation(preview_get_mock, test_config, tmp_path, test_name
     test_config.change_working_directory(tmp_path)
 
     def _http_get_tar_mock(url, fqn, _):
+        import logging
+        logging.error(fqn)
         if url.endswith('preview=true'):
             shutil.copy(f'{test_name}/preview.jpg', fqn)
         else:
@@ -109,10 +111,11 @@ def test_preview_augmentation(preview_get_mock, test_config, tmp_path, test_name
         hierarchy._working_directory = tmp_path
         hierarchy._preview_uri = f'https://vo.astron.nl/getproduct/LoTSS-DR2/{basename(test_name)}?preview=true'
         kwargs = {
-            'strategy': hierarchy,
+            'hierarchy': hierarchy,
             'config': test_config,
         }
-        observation = visit(observation, **kwargs)
+        visitor = LOTSSPreview()
+        observation = visitor.visit(observation, **kwargs)
 
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 12, f'wrong number of artifacts {len(artifact_keys)}'

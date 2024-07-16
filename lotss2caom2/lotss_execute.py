@@ -84,11 +84,11 @@ from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
-from lotss2caom2 import fits2caom2_augmentation, preview_augmentation
+from lotss2caom2.fits2caom2_augmentation import LoTSSFits2caom2Visitor
+from lotss2caom2.preview_augmentation import LOTSSPreview
 
 
-META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
-DATA_VISITORS = []
+VISITORS = [LoTSSFits2caom2Visitor(), LOTSSPreview()]
 
 
 class LOTSSHierarchyStrategy(HierarchyStrategy):
@@ -168,10 +168,10 @@ class LOTSSRawHierarchyStrategy(HierarchyStrategy):
 
     LOTSS_NAME_PATTERN = '*'
 
-    def __init__(self, obs_id, file_name):
+    def __init__(self, mosaic_id, product_id, file_name):
         super().__init__(entry=file_name, source_names=[file_name], metadata=None, file_info=None)
-        self._obs_id = obs_id
-        self._product_id = obs_id
+        self._obs_id = f'{mosaic_id}_dr2'
+        self._product_id = product_id
         self._logger.debug(self)
 
     def get_artifact_product_type(self, value):
@@ -310,14 +310,14 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         """Retrieve available metadata for raw inputs."""
         if self._provenance_uri:
             self._logger.debug(f'Begin _get_provenance_metadata from {self._provenance_uri}')
-            self._retrieve_provenance_metadata()
+            self._raw_table = self._retrieve_provenance_metadata()
             sas_id = self._provenance_uri.split('=')[-1]
             for index, row in enumerate(self._raw_table):
                 if len(row) > 0:
-                    if row.get('Filename'):
-                        strategy = LOTSSRawHierarchyStrategy(sas_id, row.get('Filename'))
+                    if row.file_name:
+                        strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, row.file_name)
                     else:
-                        strategy = LOTSSRawHierarchyStrategy(sas_id, str(index))
+                        strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, str(index))
                     strategy.metadata = row
                     self._hierarchies[strategy.file_uri] = strategy
             self._logger.debug('End _get_provenance_metadata')
@@ -325,6 +325,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
     def _retrieve_provenance_metadata(self):
         self._logger.debug(f'Begin _retrieve_provenance_metadata')
         response = None
+        result = None
         try:
             response = query_endpoint_session(self._provenance_uri, self._session)
             response.raise_for_status()
@@ -341,7 +342,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         if response is None:
                             self._logger.warning(f'No response from {source_data_product}')
                         else:
-                            self._raw_table = self._parse_html_string_for_table(
+                            result = self._parse_html_string_for_table(
                                 response.content, 'result_table_CorrelatedDataProduct'
                             )
                 else:
@@ -350,6 +351,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
             if response is not None:
                 response.close()
         self._logger.debug(f'End _retrieve_provenance_metadata')
+        return result
 
     def _expand(self, entry):
         self._logger.debug(f'Begin expand for {entry}')
@@ -444,10 +446,9 @@ def execute():
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
-    organizer = OrganizeWithContext(config, strategy_context, clients, observable)
+    organizer = OrganizeWithContext(clients, config, observable, strategy_context, VISITORS)
     data_source = TodoFileDataSource(config)
     # TODO - this would need to be consistent between data_sources
-    organizer.choose(META_VISITORS, DATA_VISITORS)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,
@@ -473,9 +474,8 @@ def remote_execute():
     observable = Observable2(config)
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
-    organizer = OrganizeWithContext(config, strategy_context, clients, observable)
+    organizer = OrganizeWithContext(clients, config, observable, strategy_context, VISITORS)
     data_source = ASTRONPyVODataSource(config, clients)
-    organizer.choose(META_VISITORS, DATA_VISITORS)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,

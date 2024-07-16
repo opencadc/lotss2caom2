@@ -88,10 +88,20 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize('test_name', obs_id_list)
 
 
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
 @patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_main_app(clients_mock, http_get_mock, session_mock, test_name, test_data_dir, test_config, tmp_path):
+def test_main_app(
+    clients_mock,
+    http_get_mock,
+    session_mock,
+    retrieve_provenance_mock,
+    test_name,
+    test_data_dir,
+    test_config,
+    tmp_path,
+):
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -121,26 +131,32 @@ def test_main_app(clients_mock, http_get_mock, session_mock, test_name, test_dat
             with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
                 result.content = f.read()
         return result
-    
     session_mock.side_effect = _session_mock
+
+    retrieve_provenance_mock.side_effect = helpers._get_db_query_mock
+
+    expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
+    actual_fqn = expected_fqn.replace('expected', 'actual')
+    if os.path.exists(actual_fqn):
+        os.unlink(actual_fqn)
+
     observations = {}
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     for hierarchy in expander.hierarchies.values():
         kwargs = {
-            'strategy': hierarchy,
+            'hierarchy': hierarchy,
             'config': test_config,
         }
         observation = observations.get(hierarchy.obs_id)
-        observation = fits2caom2_augmentation.visit(observation, **kwargs)
+        visitor  = fits2caom2_augmentation.LoTSSFits2caom2Visitor()
+        observation = visitor.visit(observation, **kwargs)
         observations[hierarchy.obs_id] = observation
 
     if len(observations) == 0:
         assert False, f'Did not create observation for {test_name}'
     else:
         for observation in observations.values():
-            expected_fqn = f'{test_name}/{observation.observation_id}.expected.xml'
-            actual_fqn = expected_fqn.replace('expected', 'actual')
             if os.path.exists(expected_fqn):
                 expected = mc.read_obs_from_file(expected_fqn)
                 compare_result = get_differences(expected, observation)

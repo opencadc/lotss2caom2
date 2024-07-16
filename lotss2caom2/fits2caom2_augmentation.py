@@ -79,87 +79,83 @@ from lotss2caom2 import main_app
 __all__ = ['LoTSSFits2caom2Visitor']
 
 
-class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
-    def __init__(self, observation, **kwargs):
-        super().__init__(observation, **kwargs)
-        self._strategy = kwargs.get('strategy')
+class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor2):
+    def __init__(self):
+        super().__init__(uses_data=False)
 
-    def _get_mapping(self, dest_uri):
-        return main_app.mapping_factory(
-            self._strategy,
-            self._clients,
-            self._observable,
-            self._observation,
-            self._config,
-            dest_uri,
-        )
+    def _get_mapping(self, clients, config, dest_uri, hierarchy, observable, observation):
+        return main_app.mapping_factory(clients, config, dest_uri, hierarchy, observable, observation)
 
-    def _get_parser(self, blueprint, uri):
+    def _get_parser(self, blueprint, hierarchy, uri):
         if (
             uri.endswith('MS')
-            or uri == f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits'
+            or uri.endswith('tar')
+            or uri == f'{hierarchy.scheme}:{hierarchy.collection}/{hierarchy.mosaic_id}/mosaic.fits'
         ):
             parser = ContentParser(blueprint, uri)
         else:
-            parser = FitsParser(self._strategy.metadata, blueprint, uri)
+            parser = FitsParser(hierarchy.metadata, blueprint, uri)
         self._logger.debug(f'Creating {parser.__class__.__name__} for {uri}')
         return parser
 
-    def visit(self):
-        self._logger.debug('Begin visit')
-        try:
-            for uri in self._strategy.destination_uris:
-                self._logger.info(f'Build observation for {uri}')
-                telescope_data = self._get_mapping(uri)
-                if telescope_data is None:
-                    self._logger.info(f'Ignoring {uri} because there is no TelescopeMapping.')
-                    continue
-                blueprint = self._get_blueprint(telescope_data)
-                telescope_data.accumulate_blueprint(blueprint)
-                if self._config.dump_blueprint and self._config.log_to_file:
-                    with open(f'{self._config.log_file_directory}/{os.path.basename(uri)}.bp', 'w') as f:
-                        f.write(blueprint.__str__())
-                parser = self._get_parser(blueprint, uri)
+    # def uses_data(self):
+    #     return False
 
-                if self._observation is None:
-                    if blueprint._get('DerivedObservation.members') is None:
-                        self._logger.debug('Build a SimpleObservation')
-                        self._observation = SimpleObservation(
-                            collection=self._strategy.collection,
-                            observation_id=self._strategy.obs_id,
-                            algorithm=Algorithm('exposure'),
-                        )
-                    else:
-                        self._logger.debug('Build a DerivedObservation')
-                        algorithm_name = (
-                            'composite'
-                            if blueprint._get('Observation.algorithm.name') == 'exposure'
-                            else blueprint._get('Observation.algorithm.name')
-                        )
-                        self._observation = DerivedObservation(
-                            collection=self._strategy.collection,
-                            observation_id=self._strategy.obs_id,
-                            algorithm=Algorithm(algorithm_name),
-                        )
-                    telescope_data.observation = self._observation
-                parser.augment_observation(
-                    observation=self._observation,
-                    artifact_uri=uri,
-                    product_id=self._strategy.product_id,
-                )
+    # def visit(self, observation, **kwargs):
+    #     self._logger.debug('Begin visit')
+    #     try:
+    #         for uri in self._strategy.destination_uris:
+    #             self._logger.info(f'Build observation for {uri}')
+    #             telescope_data = self._get_mapping(uri)
+    #             if telescope_data is None:
+    #                 self._logger.info(f'Ignoring {uri} because there is no TelescopeMapping.')
+    #                 continue
+    #             blueprint = self._get_blueprint(telescope_data)
+    #             telescope_data.accumulate_blueprint(blueprint)
+    #             if self._config.dump_blueprint and self._config.log_to_file:
+    #                 with open(f'{self._config.log_file_directory}/{os.path.basename(uri)}.bp', 'w') as f:
+    #                     f.write(blueprint.__str__())
+    #             parser = self._get_parser(blueprint, uri)
 
-                # file_info = self._metadata_reader.file_info.get(uri)
-                self._observation = telescope_data.update()
-        except Caom2Exception as e:
-            self._logger.debug(traceback.format_exc())
-            self._logger.warning(
-                f'CAOM2 record creation failed for {self._strategy.obs_id}:{self._strategy.file_name} with {e}'
-            )
-            self._observation = None
+    #             if self._observation is None:
+    #                 if blueprint._get('DerivedObservation.members') is None:
+    #                     self._logger.debug('Build a SimpleObservation')
+    #                     self._observation = SimpleObservation(
+    #                         collection=self._strategy.collection,
+    #                         observation_id=self._strategy.obs_id,
+    #                         algorithm=Algorithm('exposure'),
+    #                     )
+    #                 else:
+    #                     self._logger.debug('Build a DerivedObservation')
+    #                     algorithm_name = (
+    #                         'composite'
+    #                         if blueprint._get('Observation.algorithm.name') == 'exposure'
+    #                         else blueprint._get('Observation.algorithm.name')
+    #                     )
+    #                     self._observation = DerivedObservation(
+    #                         collection=self._strategy.collection,
+    #                         observation_id=self._strategy.obs_id,
+    #                         algorithm=Algorithm(algorithm_name),
+    #                     )
+    #                 telescope_data.observation = self._observation
+    #             parser.augment_observation(
+    #                 observation=self._observation,
+    #                 artifact_uri=uri,
+    #                 product_id=self._strategy.product_id,
+    #             )
 
-        self._logger.debug('End visit')
-        return self._observation
+    #             # file_info = self._metadata_reader.file_info.get(uri)
+    #             self._observation = telescope_data.update()
+    #     except Caom2Exception as e:
+    #         self._logger.debug(traceback.format_exc())
+    #         self._logger.warning(
+    #             f'CAOM2 record creation failed for {self._strategy.obs_id}:{self._strategy.file_name} with {e}'
+    #         )
+    #         self._observation = None
+
+    #     self._logger.debug('End visit')
+    #     return self._observation
 
 
-def visit(observation, **kwargs):
-    return LoTSSFits2caom2Visitor(observation, **kwargs).visit()
+# def visit(observation, **kwargs):
+#     return LoTSSFits2caom2Visitor(observation, **kwargs).visit()

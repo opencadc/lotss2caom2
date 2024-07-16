@@ -70,8 +70,8 @@ import shutil
 
 from caom2pipe.execute_composable import OrganizeWithContext, ScrapeContext
 from caom2pipe.manage_composable import Config, Observable2, TaskType
-from lotss2caom2.lotss_execute import execute, LOTSSHierarchyStrategyContext, META_VISITORS, remote_execute
-from mock import call, patch
+from lotss2caom2.lotss_execute import execute, LOTSSHierarchyStrategyContext, VISITORS, remote_execute
+from mock import ANY, call, patch
 from unittest import skip
 
 import helpers
@@ -114,7 +114,7 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
             with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
                 result.content = f.read()
         return result
-    
+
     session_mock.side_effect = _session_mock
 
     test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
@@ -137,21 +137,12 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
         assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
         assert f'{test_config.scheme}:{test_config.collection}/L762093_SAP001_SB243_uv.MS' in check, f'{check.__class__.__name__} mosaic.rms'
 
-    # test_uri_prefix = 'https://lofar-webdav.grid.surfsara.nl:2881/P000+23/'
-    # for check in [test_subject.headers.keys()]:
-    #     assert f'{test_uri_prefix}low-mosaic-blanked.fits' in check, f'{check.__class__.__name__} low-mosaic-blanked'
-    #     assert f'{test_uri_prefix}low-mosaic-weights.fits' in check, f'{check.__class__.__name__} low-mosaic-weights'
-    #     assert f'{test_uri_prefix}mosaic-blanked.fits' in check, f'{check.__class__.__name__} mosaic-blanked'
-    #     assert f'{test_uri_prefix}mosaic-weights.fits' in check, f'{check.__class__.__name__} mosaic-weights'
-    #     assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
-    #     assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
-    #     assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
 
-
-@skip('not properly mocked')
+@patch('lotss2caom2.preview_augmentation.http_get')
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_dir, tmp_path, change_test_dir):
+def test_organize_nominal(clients_mock, http_get_mock, session_mock, preview_mock, test_config, test_data_dir, tmp_path, change_test_dir):
     # one mosaic id, seven files
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
@@ -169,13 +160,33 @@ def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_di
         shutil.copy(f'{test_data_dir}/P000+23/fits_headers.tar', '/tmp')
 
     http_get_mock.side_effect = _http_get_mock
+
+    def _session_mock(url, _):
+        result = type('response', (), {})()
+        result.close = lambda: None
+        result.raise_for_status = lambda: None
+        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
+            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
+                result.content = f.read()
+        else:
+            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
+                result.content = f.read()
+        return result
+
+    session_mock.side_effect = _session_mock
+    clients_mock.metadata_client.read.side_effect = lambda collection, obs_id: None
+
+    def _preview_mock_side_effect(ign1, ign2, ign3):
+        shutil.copy(f'{test_data_dir}/P000+23/preview.jpg', tmp_path)
+
+    preview_mock.side_effect = _preview_mock_side_effect
+
     test_context = LOTSSHierarchyStrategyContext(clients_mock, test_config)
 
+    test_config.task_types = [TaskType.INGEST]
     test_config.change_working_directory(tmp_path)
     test_observable = Observable2(test_config)
-    test_executor = ScrapeContext(test_config, META_VISITORS, test_observable)
-    test_subject = OrganizeWithContext(test_config, test_context, clients_mock, test_observable)
-    test_subject._executors = [test_executor]
+    test_subject = OrganizeWithContext(clients_mock, test_config, test_observable, test_context, VISITORS)
     for entry in [
         'file_name.fits',
         'cadc:COLLECTION/file_name.fits',
@@ -188,9 +199,9 @@ def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_di
         assert test_result_message is None, f'success means no message {entry} {test_result_message}'
 
 
-def test_organize_failures():
-    # set up each of the failure paths
-    assert False
+# def test_organize_failures():
+#     # set up each of the failure paths
+#     assert False
 
 
 @skip('not properly mocked')
@@ -233,9 +244,19 @@ def test_remote_execute_nominal(clients_mock, test_config, tmp_path, change_test
     assert False
 
 
-@skip('not properly mocked')
+@patch('lotss2caom2.preview_augmentation.http_get')
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
+@patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.lotss_execute.ASTRONClientCollection')
-def test_execute_nominal(clients_mock, test_config, tmp_path, change_test_dir):
+def test_execute_nominal(
+    clients_mock,
+    lotss_execute_http_get_mock,
+    session_mock,
+    preview_http_get_mock,
+    test_config,
+    tmp_path,
+    change_test_dir,
+):
     test_config.change_working_directory(tmp_path)
     test_config.proxy_file_name = 'test_proxy.pem'
     test_config.task_types = [TaskType.INGEST]
@@ -247,9 +268,13 @@ def test_execute_nominal(clients_mock, test_config, tmp_path, change_test_dir):
 
     Config.write_to_file(test_config)
 
-    clients_mock.return_value.py_vo_tap_client.search.return_value = ['P000+23']
+    clients_mock.return_value.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
+    clients_mock.return_value.metadata_client.read.side_effect = lambda collection, obs_id: None
     test_result = execute()
     assert test_result == 0, 'expect success'
-    clients_mock.return_value.py_vo_tap_client.search.has_calls([call()]), 'py_vo search'
-    clients_mock.return_value.data_client.has_calls([call()]), 'data'
-    clients_mock.return_value.metadata_client.has_calls([call()]), 'metadata'
+    clients_mock.return_value.py_vo_tap_client.search.assert_called_with(
+        "SELECT * FROM lotss_dr2.mosaics WHERE mosaic_id='test_content'",
+    ), 'py_vo search'
+    assert not clients_mock.return_value.data_client.read.called, 'data'
+    clients_mock.return_value.metadata_client.read.assert_called_with('LOTSS', 'test_content_dr2'), 'metadata'
+    clients_mock.return_value.metadata_client.create.assert_called_with(ANY), 'metadata create'
