@@ -77,8 +77,9 @@ import logging
 # from urllib.parse import urlparse
 # from astropy import units
 
-from caom2 import CoordCircle2D, ProductType, ValueCoord2D
-from caom2pipe.astro_composable import get_geocentric_location
+from caom2 import CoordCircle2D, PlaneURI, ProductType, TypedSet, ValueCoord2D
+from caom2utils.blueprints import _to_float
+from caom2pipe.astro_composable import get_geocentric_location, get_datetime_mjd
 from caom2pipe import caom_composable as cc
 
 
@@ -254,10 +255,10 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                     source_chunk = source_artifact.parts['0'].chunks[0]
                     mosaic_chunk = mosaic_artifact.parts['0'].chunks[0]
                     if (
-                        source_chunk.position is not None 
-                        and source_chunk.position.axis is not None 
-                        and mosaic_chunk.position is not None 
-                        and mosaic_chunk.position.axis is not None 
+                        source_chunk.position is not None
+                        and source_chunk.position.axis is not None
+                        and mosaic_chunk.position is not None
+                        and mosaic_chunk.position.axis is not None
                     ):
                         mosaic_chunk.position.axis.bounds = source_chunk.position.axis.bounds
 
@@ -375,10 +376,10 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
                 source_chunk = source_artifact.parts['0'].chunks[0]
                 mosaic_chunk = mosaic_artifact.parts['0'].chunks[0]
                 if (
-                    source_chunk.position is not None 
-                    and source_chunk.position.axis is not None 
-                    and mosaic_chunk.position is not None 
-                    and mosaic_chunk.position.axis is not None 
+                    source_chunk.position is not None
+                    and source_chunk.position.axis is not None
+                    and mosaic_chunk.position is not None
+                    and mosaic_chunk.position.axis is not None
                 ):
                     mosaic_chunk.position.axis.bounds = source_chunk.position.axis.bounds
 
@@ -419,11 +420,156 @@ class DR2MosaicSciencePolarizationLow(DR2MosaicSciencePolarization):
         self._logger.debug('Done accumulate_bp.')
 
 
+class DR2Raw(cc.TelescopeMapping2):
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(hierarchy, clients, observable, observation, config)
+        self._dest_uri = dest_uri
+        self._hierarchy = hierarchy
+
+    def accumulate_blueprint(self, bp):
+        """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level.
+
+        hard-coded values are from https://science.astron.nl/sdc/astron-data-explorer/data-releases/lotss-dr2/
+        """
+        self._logger.debug('Begin accumulate_bp.')
+        super().accumulate_blueprint(bp)
+
+        release_date = self._hierarchy.metadata.release_date
+        bp.set('Observation.metaRelease', release_date)
+        bp.set('Observation.type', 'OBJECT')
+        bp.set('Observation.target.type', 'field')
+
+        telescope_name = 'LOFAR'
+        bp.set('Observation.telescope.name', telescope_name)
+        x, y, z = get_geocentric_location(telescope_name)
+        bp.set('Observation.telescope.geoLocationX', x)
+        bp.set('Observation.telescope.geoLocationY', y)
+        bp.set('Observation.telescope.geoLocationZ', z)
+
+        bp.set('Plane.metaRelease', release_date)
+        bp.set('Plane.dataRelease', release_date)
+        bp.set('Plane.calibrationLevel', 1)
+        bp.set('Plane.dataProductType', 'measurements')
+        bp.set('Plane.provenance.name', self._hierarchy.metadata.project_name)
+        bp.set('Plane.provenance.producer', self._hierarchy.metadata.creator)
+        bp.set('Plane.provenance.lastExecuted', '')
+        # TODO
+        # bp.set('Plane.provenance.reference', self._mosaic_metadata.get('related_products'))
+
+        bp.set('Artifact.productType', self._hierarchy.get_artifact_product_type(self._dest_uri))
+        bp.set('Artifact.releaseType', 'data')
+        bp.set('Artifact.contentChecksum', self._hierarchy.metadata.content_checksum)
+        bp.set('Artifact.contentType', self._hierarchy.metadata.content_type)
+
+        bp.configure_position_axes((1, 2))
+        bp.set('Chunk.position.axis.axis1.ctype', 'RA---SIN')
+        bp.set('Chunk.position.axis.axis1.cunit', 'deg')
+        bp.set('Chunk.position.axis.axis2.ctype', 'DEC--SIN')
+        bp.set('Chunk.position.axis.axis2.cunit', 'deg')
+        bp.add_attribute('Chunk.position.axis.function.cd11', 'CDELT1')
+        bp.set('Chunk.position.axis.function.cd12', 0.0)
+        bp.set('Chunk.position.axis.function.cd21', 0.0)
+        bp.add_attribute('Chunk.position.axis.function.cd22', 'CDELT2')
+        bp.set('Chunk.position.coordsys', 'ICRS')
+
+        bp.configure_energy_axis(3)
+        bp.set('Chunk.energy.axis.axis.ctype', 'WAVE')
+        bp.set('Chunk.energy.axis.axis.cunit', 'MHz')
+        # Central Frequency
+        # Channel Width
+        # self._logger.error(self._hierarchy.metadata)
+        central_frequency = _to_float(self._hierarchy.metadata.central_frequency)  # MHz
+        channel_width = _to_float(self._hierarchy.metadata.channel_width) / 10e6  # Central Frequency in Hz
+        bp.set('Chunk.energy.axis.range.start.pix', 0.5)
+        bp.set('Chunk.energy.axis.range.start.val', central_frequency - (channel_width / 2.0))
+        bp.set('Chunk.energy.axis.range.end.pix', 1.5)
+        bp.set('Chunk.energy.axis.range.end.val',  central_frequency + (channel_width / 2.0))
+        bp.set('Chunk.energy.resolvingPower', self._hierarchy.metadata.integration_interval)
+        # TODO - guess
+        bp.set('Chunk.energy.specsys', 'TOPOCENT')
+
+        bp.configure_time_axis(4)
+        bp.set('Chunk.time.axis.axis.ctype', 'TIME')
+        bp.set('Chunk.time.axis.axis.cunit', 'd')
+        bp.set('Chunk.time.axis.range.start.pix', 0.5)
+        start_mjd = get_datetime_mjd(self._hierarchy.metadata.start_time)
+        if start_mjd:
+            bp.set('Chunk.time.axis.range.start.val', start_mjd.value)
+        bp.set('Chunk.time.axis.range.end.pix', 1.5)
+        end_mjd = get_datetime_mjd(self._hierarchy.metadata.end_time)
+        if end_mjd:
+            bp.set('Chunk.time.axis.range.end.val', end_mjd.value)
+        bp.set('Chunk.time.resolution', _to_float(self._hierarchy.metadata.duration) / (24.0 * 3600.0) )
+        bp.set('Chunk.time.timesys', 'UTC')
+
+        self._logger.debug('Done accumulate_bp.')
+
+    def update(self):
+        """Called to fill multiple CAOM model elements and/or attributes (an n:n relationship between TDM attributes
+        and CAOM attributes).
+        """
+        super().update()
+        for plane in self._observation.planes.values():
+            if plane.product_id != self._hierarchy.product_id:
+                if plane.provenance and len(plane.provenance.inputs) < 1:
+                    plane_uri = cc.build_plane_uri(
+                        self._hierarchy.collection, self._hierarchy.obs_id, self._hierarchy.product_id
+                    )
+                    plane_inputs = TypedSet(PlaneURI,)
+                    plane_inputs.add(plane_uri)
+                    plane.provenance.inputs.update(plane_inputs)
+            for artifact in plane.artifacts.values():
+                for part in artifact.parts.values():
+                    for chunk in part.chunks:
+                        # no cut-out support for any axes
+                        # chunk.position_axis_1 = 1
+                        # chunk.position_axis_2 = 2
+                        chunk.time_axis = None
+                        chunk.energy_axis = None
+        return self._observation
+
+    def _get_observation_proposal_keywords(self, ext):
+        # values from https://www.aanda.org/articles/aa/full_html/2022/03/aa42484-21/aa42484-21.html
+        # default keyword setting splits on whitespace
+        temp = set()
+        temp.add('surveys')
+        temp.add('catalogs')
+        temp.add('radio continuum: general')
+        temp.add('techniques: image processing')
+        return temp
+
+    def _update_artifact(self, artifact):
+        self._logger.debug(f'Begin _update_artifact for {artifact.uri}')
+        # naxis1 = self._hierarchy.metadata.get('TODO')
+        # current values are copied from the processed records
+        naxis1 = 2978
+        # cdelt1 = self._hierarchy.metadata.get('TODO')
+        cdelt1 = -0.00041666666666666
+        crval1 = self._hierarchy.metadata.ra
+        crval2 = self._hierarchy.metadata.dec
+        if naxis1 and cdelt1 and crval1 and crval2:
+            for part in artifact.parts.values():
+                for chunk in part.chunks:
+                    if chunk.position is not None and chunk.position.axis is not None:
+                        # add the circular representation
+                        center = ValueCoord2D(coord1=crval1, coord2=crval2)
+                        bounds = CoordCircle2D(center, radius=(naxis1 * abs(cdelt1) / 2.0 ))
+                        chunk.position.axis.bounds = bounds
+                        self._logger.debug(f'Updated bounds for {self._hierarchy.file_uri}')
+                    # TODO like this until the Spatial WCS handling is organized
+                    chunk.naxis = None
+                    chunk.position_axis_1 = None
+                    chunk.position_axis_2 = None
+
+
 def mapping_factory(strategy, clients, observable, observation, config, dest_uri):
     # logging.error('\n'.join(ii for ii in storage_name._headers.keys()))
     # logging.error(dest_uri)
     result = None
-    if dest_uri == f'{strategy.scheme}:{strategy.collection}/{strategy.mosaic_id}/mosaic.fits':
+    if dest_uri.endswith('MS') or dest_uri.endswith('tar'):
+        result = DR2Raw(clients, config, dest_uri, strategy, observable, observation)
+    elif dest_uri == f'{strategy.scheme}:{strategy.collection}/{strategy.mosaic_id}/mosaic-blanked.fits':
+        # result = DR2Mosaic(clients, config, dest_uri, strategy, observable, observation)
         result = DR2Mosaic(strategy, clients, observable, observation, config, dest_uri)
     else:
         if strategy.product_id.endswith('low'):

@@ -82,7 +82,7 @@ __all__ = ['LoTSSFits2caom2Visitor']
 class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
     def __init__(self, observation, **kwargs):
         super().__init__(observation, **kwargs)
-        self._strategy = kwargs.get('strategy')
+        self._strategy = kwargs.get('hierarchy')
 
     def _get_mapping(self, dest_uri):
         return main_app.mapping_factory(
@@ -95,7 +95,10 @@ class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
         )
 
     def _get_parser(self, blueprint, uri):
-        if uri == f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits':
+        if (
+            hasattr(uri, 'mosaic')
+            and uri == f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits'
+        ):
             parser = ContentParser(blueprint, uri)
         else:
             parser = FitsParser(self._strategy.metadata, blueprint, uri)

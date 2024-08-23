@@ -77,9 +77,10 @@ from unittest import skip
 import helpers
 
 
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_path):
+def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_data_dir, tmp_path):
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -102,14 +103,31 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
 
     http_get_mock.side_effect = _http_get_mock
 
+    def _session_mock(url, _):
+        import logging
+        logging.error(url)
+        result = type('response', (), {})()
+        result.close = lambda: None
+        result.raise_for_status = lambda: None
+        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
+            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
+                result.content = f.read()
+        else:
+            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
+                result.content = f.read()
+        return result
+
+    session_mock.side_effect = _session_mock
+
     test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
     assert test_subject is not None, 'ctor'
 
     test_mosaic_id = 'P000+23'
     test_subject.expand(test_mosaic_id)
 
-    assert len(test_subject.hierarchies) == 8, f'wrong header length {len(test_subject.hierarchies)}'
-    # assert len(test_subject.storage_names) == 8, f'wrong uris len {len(test_subject.storage_names)}'
+    # assert len(test_subject.hierarchies) == 251, f'wrong header length {len(test_subject.hierarchies)}'
+    assert 'astron:LOTSS/P000+23/mosaic.fits' not in test_subject.hierarchies.keys(), 'the renaming bug is back'
+    assert len(test_subject.hierarchies) == 7, f'wrong uris len {len(test_subject.hierarchies)}'
 
     test_uri_prefix = f'{test_config.scheme}:{test_config.collection}/{test_mosaic_id}/'
     for check in [test_subject.hierarchies.keys()]:
@@ -120,16 +138,6 @@ def test_strategy(clients_mock, http_get_mock, test_config, test_data_dir, tmp_p
         assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
         assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
         assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
-
-    # test_uri_prefix = 'https://lofar-webdav.grid.surfsara.nl:2881/P000+23/'
-    # for check in [test_subject.headers.keys()]:
-    #     assert f'{test_uri_prefix}low-mosaic-blanked.fits' in check, f'{check.__class__.__name__} low-mosaic-blanked'
-    #     assert f'{test_uri_prefix}low-mosaic-weights.fits' in check, f'{check.__class__.__name__} low-mosaic-weights'
-    #     assert f'{test_uri_prefix}mosaic-blanked.fits' in check, f'{check.__class__.__name__} mosaic-blanked'
-    #     assert f'{test_uri_prefix}mosaic-weights.fits' in check, f'{check.__class__.__name__} mosaic-weights'
-    #     assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
-    #     assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
-    #     assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
 
 
 @skip('not properly mocked')
@@ -172,6 +180,7 @@ def test_organize_nominal(clients_mock, http_get_mock, test_config, test_data_di
         assert test_result_message is None, f'success means no message {entry} {test_result_message}'
 
 
+@skip('not implemented')
 def test_organize_failures():
     # set up each of the failure paths
     assert False

@@ -113,7 +113,7 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
 
     observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
-    assert len(artifact_keys) == 8, f'pre-condition artifact count {len(artifact_keys)}'
+    assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     test_config.working_directory = test_name
@@ -125,4 +125,4 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
         observation = visit(observation, **kwargs)
 
     artifact_keys = get_all_artifact_keys(observation)
-    assert len(artifact_keys) == 12, f'wrong number of artifacts {len(artifact_keys)}'
+    assert len(artifact_keys) == 11, f'wrong number of artifacts {len(artifact_keys)}'

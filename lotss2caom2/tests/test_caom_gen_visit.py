@@ -68,11 +68,9 @@
 
 from mock import patch
 
-from lotss2caom2 import fits2caom2_augmentation, main_app
+from lotss2caom2 import fits2caom2_augmentation
 from caom2.diff import get_differences
-from caom2pipe import astro_composable as ac
 from caom2pipe import manage_composable as mc
-from caom2pipe import reader_composable as rdc
 from lotss2caom2 import lotss_execute
 
 import glob
@@ -90,9 +88,20 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize('test_name', obs_id_list)
 
 
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_main_app(clients_mock, http_get_mock, test_name, test_config, tmp_path):
+def test_main_app(
+    clients_mock,
+    http_get_mock,
+    session_mock,
+    retrieve_provenance_mock,
+    test_name,
+    test_data_dir,
+    test_config,
+    tmp_path,
+):
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -110,34 +119,52 @@ def test_main_app(clients_mock, http_get_mock, test_name, test_config, tmp_path)
         shutil.copy(f'{test_name}/fits_headers.tar', '/tmp')
 
     http_get_mock.side_effect = _http_get_mock
+
+    def _session_mock(url, _):
+        result = type('response', (), {})()
+        result.close = lambda: None
+        result.raise_for_status = lambda: None
+        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
+            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
+                result.content = f.read()
+        else:
+            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
+                result.content = f.read()
+        return result
+    session_mock.side_effect = _session_mock
+
+    retrieve_provenance_mock.side_effect = helpers._get_db_query_mock
+
     expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
-    in_fqn = expected_fqn.replace('.expected', '.in')
     actual_fqn = expected_fqn.replace('expected', 'actual')
     if os.path.exists(actual_fqn):
         os.unlink(actual_fqn)
-    observation = None
-    if os.path.exists(in_fqn):
-        observation = mc.read_obs_from_file(in_fqn)
+
+    observations = {}
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     for hierarchy in expander.hierarchies.values():
         kwargs = {
-            'strategy': hierarchy,
+            'hierarchy': hierarchy,
             'config': test_config,
         }
+        observation = observations.get(hierarchy.obs_id)
         observation = fits2caom2_augmentation.visit(observation, **kwargs)
-    if observation is None:
+        observations[hierarchy.obs_id] = observation
+
+    if len(observations) == 0:
         assert False, f'Did not create observation for {test_name}'
     else:
-        if os.path.exists(expected_fqn):
-            expected = mc.read_obs_from_file(expected_fqn)
-            compare_result = get_differences(expected, observation)
-            if compare_result is not None:
+        for observation in observations.values():
+            if os.path.exists(expected_fqn):
+                expected = mc.read_obs_from_file(expected_fqn)
+                compare_result = get_differences(expected, observation)
+                if compare_result is not None:
+                    mc.write_obs_to_file(observation, actual_fqn)
+                    compare_text = '\n'.join([r for r in compare_result])
+                    msg = f'Differences found in observation {expected.observation_id}\n' f'{compare_text}'
+                    raise AssertionError(msg)
+            else:
                 mc.write_obs_to_file(observation, actual_fqn)
-                compare_text = '\n'.join([r for r in compare_result])
-                msg = f'Differences found in observation {expected.observation_id}\n' f'{compare_text}'
-                raise AssertionError(msg)
-        else:
-            mc.write_obs_to_file(observation, actual_fqn)
-            assert False, f'nothing to compare to for {test_name}, missing {expected_fqn}'
+                assert False, f'nothing to compare to for {test_name}, missing {expected_fqn}'
     # assert False  # cause I want to see logging messages

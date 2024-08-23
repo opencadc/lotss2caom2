@@ -271,7 +271,7 @@
       </caom2:provenance>
       <caom2:artifacts>
         <caom2:artifact caom2:id="882cef07-657c-444c-b809-62eccea0ce02" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:bc2cd8c665e7189a8f404d84c6c6e41a" caom2:accMetaChecksum="md5:dcaf903a4e2c14b1afa76813de26b8c8">
-          <caom2:uri>astron:LOTSS/P124+62/mosaic.fits</caom2:uri>
+          <caom2:uri>astron:LOTSS/P124+62/mosaic-blanked.fits</caom2:uri>
           <caom2:productType>science</caom2:productType>
           <caom2:releaseType>data</caom2:releaseType>
           <caom2:contentType>application/fits</caom2:contentType>
@@ -318,10 +318,10 @@
                             <caom2:val>61.9895</caom2:val>
                           </caom2:coord2>
                         </caom2:refCoord>
-                        <caom2:cd11>-0.0004166669968981296</caom2:cd11>
+                        <caom2:cd11>-0.00041666699689812</caom2:cd11>
                         <caom2:cd12>0.0</caom2:cd12>
                         <caom2:cd21>0.0</caom2:cd21>
-                        <caom2:cd22>0.0004166669968981296</caom2:cd22>
+                        <caom2:cd22>0.000416666996898129</caom2:cd22>
                       </caom2:function>
                     </caom2:axis>
                     <caom2:coordsys>ICRS</caom2:coordsys>
@@ -347,6 +347,7 @@
                     </caom2:axis>
                     <caom2:specsys>TOPOCENT</caom2:specsys>
                     <caom2:bandpassName>120-168MHz</caom2:bandpassName>
+                    <caom2:restfrq>143650000.0</caom2:restfrq>
                   </caom2:energy>
                   <caom2:time>
                     <caom2:axis>
@@ -475,85 +476,6 @@
               <caom2:name>0</caom2:name>
               <caom2:chunks>
                 <caom2:chunk caom2:id="e19e5b3c-e85c-41fb-81d8-cd06ac3325ef" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:70a64bbf8c1fa52e831b6715e0b5d551" caom2:accMetaChecksum="md5:8a890201eee7a83825f41c61c2650463" caom2:metaProducer="lotss2caom2/0.1.0">
-                  <caom2:naxis>2</caom2:naxis>
-                  <caom2:positionAxis1>1</caom2:positionAxis1>
-                  <caom2:positionAxis2>2</caom2:positionAxis2>
-                  <caom2:position>
-                    <caom2:axis>
-                      <caom2:axis1>
-                        <caom2:ctype>RA---SIN</caom2:ctype>
-                        <caom2:cunit>deg</caom2:cunit>
-                      </caom2:axis1>
-                      <caom2:axis2>
-                        <caom2:ctype>DEC--SIN</caom2:ctype>
-                        <caom2:cunit>deg</caom2:cunit>
-                      </caom2:axis2>
-                      <caom2:bounds>
-                        <caom2:circle>
-                          <caom2:center>
-                            <caom2:coord1>124.678</caom2:coord1>
-                            <caom2:coord2>61.9895</caom2:coord2>
-                          </caom2:center>
-                          <caom2:radius>1.9299999999999693</caom2:radius>
-                        </caom2:circle>
-                      </caom2:bounds>
-                      <caom2:function>
-                        <caom2:dimension>
-                          <caom2:naxis1>9264</caom2:naxis1>
-                          <caom2:naxis2>9264</caom2:naxis2>
-                        </caom2:dimension>
-                        <caom2:refCoord>
-                          <caom2:coord1>
-                            <caom2:pix>4632.0</caom2:pix>
-                            <caom2:val>124.678</caom2:val>
-                          </caom2:coord1>
-                          <caom2:coord2>
-                            <caom2:pix>4632.0</caom2:pix>
-                            <caom2:val>61.9895</caom2:val>
-                          </caom2:coord2>
-                        </caom2:refCoord>
-                        <caom2:cd11>-0.00041666666666666</caom2:cd11>
-                        <caom2:cd12>0.0</caom2:cd12>
-                        <caom2:cd21>0.0</caom2:cd21>
-                        <caom2:cd22>0.000416666666666666</caom2:cd22>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:coordsys>ICRS</caom2:coordsys>
-                    <caom2:equinox>2000.0</caom2:equinox>
-                    <caom2:resolution>0.001666</caom2:resolution>
-                  </caom2:position>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58350.241377315</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
-                </caom2:chunk>
-              </caom2:chunks>
-            </caom2:part>
-          </caom2:parts>
-        </caom2:artifact>
-        <caom2:artifact caom2:id="e6c4ac97-8a68-4a8f-91c2-665bd09b0e08" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:f2284cdc032fa5d7e9c5dbf064ec2fa4" caom2:accMetaChecksum="md5:f68b35b79b1f9077ff7964d866b07725" caom2:metaProducer="lotss2caom2/0.1.0">
-          <caom2:uri>astron:LOTSS/P124+62/mosaic-blanked.fits</caom2:uri>
-          <caom2:productType>science</caom2:productType>
-          <caom2:releaseType>data</caom2:releaseType>
-          <caom2:parts>
-            <caom2:part caom2:id="63d529b9-b335-433a-9348-24887dac57ca" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:b34ec1fcfeec785f3deda5814faeb025" caom2:accMetaChecksum="md5:05981fa4d3314dd60e227b7b9f0f6611">
-              <caom2:name>0</caom2:name>
-              <caom2:chunks>
-                <caom2:chunk caom2:id="d19e5b3c-e85c-41fb-81d8-cd06ac3325ef" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:70a64bbf8c1fa52e831b6715e0b5d551" caom2:accMetaChecksum="md5:8a890201eee7a83825f41c61c2650463" caom2:metaProducer="lotss2caom2/0.1.0">
                   <caom2:naxis>2</caom2:naxis>
                   <caom2:positionAxis1>1</caom2:positionAxis1>
                   <caom2:positionAxis2>2</caom2:positionAxis2>
