@@ -77,9 +77,9 @@ import logging
 # from urllib.parse import urlparse
 # from astropy import units
 
-from caom2 import CoordCircle2D, PlaneURI, ProductType, TypedSet, ValueCoord2D
+from caom2 import CoordCircle2D, PlaneURI, TypedSet, ValueCoord2D
 from caom2utils.blueprints import _to_float
-from caom2pipe.astro_composable import get_geocentric_location, get_datetime_mjd
+from caom2pipe.astro_composable import get_datetime_mjd, get_geocentric_location
 from caom2pipe import caom_composable as cc
 
 
@@ -87,9 +87,9 @@ __all__ = ['mapping_factory']
 
 
 class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config)
-        self._mosaic_metadata = strategy.mosaic_metadata
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, hierarchy, observable, observation)
+        self._mosaic_metadata = hierarchy.mosaic_metadata
         self._dest_uri = dest_uri
 
     def accumulate_blueprint(self, bp):
@@ -133,7 +133,7 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
         bp.set('Plane.provenance.lastExecuted', '')
         bp.set('Plane.provenance.reference', self._mosaic_metadata.get('related_products'))
 
-        bp.set('Artifact.productType', self._strategy.get_artifact_product_type(self._dest_uri))
+        bp.set('Artifact.productType', self._hierarchy.get_artifact_product_type(self._dest_uri))
         bp.set('Artifact.releaseType', 'data')
 
         bp.configure_time_axis(5)
@@ -167,9 +167,9 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                             chunk.naxis = 2
                             chunk.energy_axis = None
                         if chunk.naxis == 4 and artifact.uri in [
-                            f'astron:LOTSS/{self._strategy.mosaic_id}/mosaic-rms.fits',
-                            f'astron:LOTSS/{self._strategy.mosaic_id}/mosaic.pybdsmmask.fits',
-                            f'astron:LOTSS/{self._strategy.mosaic_id}/mosaic.resid.fits',
+                            f'astron:LOTSS/{self._hierarchy.mosaic_id}/mosaic-rms.fits',
+                            f'astron:LOTSS/{self._hierarchy.mosaic_id}/mosaic.pybdsmmask.fits',
+                            f'astron:LOTSS/{self._hierarchy.mosaic_id}/mosaic.resid.fits',
                         ]:
                             # Spectral WCS values from file headers result in negative wavelengths
                             chunk.naxis = 3
@@ -224,29 +224,21 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                     if chunk.position is not None and chunk.position.axis is not None:
                         # add the circular representation
                         center = ValueCoord2D(
-                            # coord1=self._mosaic_metadata['centeralpha'],
-                            # coord2=self._mosaic_metadata['centerdelta'],
                             coord1=crval1,
                             coord2=crval2,
                         )
-                        bounds = CoordCircle2D(
-                            center,
-                            # radius=((4.0 / 2.0) * units.arcsec).to(units.degree).value,
-                            # this is the wrong FoV, need to know how to calculate the correct value
-                            # radius=(( 13.8817 / 2.0) * units.degree).value,
-                            radius=( naxis1 * abs(cdelt1) / 2.0 )
-                        )
+                        bounds = CoordCircle2D(center, radius=( naxis1 * abs(cdelt1) / 2.0 ))
                         chunk.position.axis.bounds = bounds
-                        self._logger.debug(f'Updated bounds for {self._strategy.file_uri}')
+                        self._logger.debug(f'Updated bounds for {self._hierarchy.file_uri}')
 
     def _update_plane(self, plane):
         if len(plane.artifacts) > 2:
-            mosaic_key = f'{self._strategy.scheme}:{self._strategy.collection}/{self._strategy.mosaic_id}/mosaic.fits'
+            mosaic_key = f'{self._hierarchy.scheme}:{self._hierarchy.collection}/{self._hierarchy.mosaic_id}/mosaic.fits'
             if mosaic_key in plane.artifacts.keys():
                 mosaic_artifact = plane.artifacts[mosaic_key]
                 source_artifact = None
                 for artifact in plane.artifacts.values():
-                    if artifact.uri != mosaic_key and artifact.product_type not in []:
+                    if artifact.uri != mosaic_key and len(artifact.parts) > 0:
                         source_artifact = artifact
                         break
 
@@ -264,8 +256,8 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
 
 
 class DR2MosaicScience(DR2MosaicAuxiliaryMapping):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, dest_uri, hierarchy, observable, observation)
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
@@ -286,9 +278,10 @@ class DR2MosaicScience(DR2MosaicAuxiliaryMapping):
 
         self._logger.debug('Done accumulate_bp.')
 
+
 class DR2MosaicScienceLow(DR2MosaicScience):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, dest_uri, hierarchy, observable, observation)
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
@@ -309,8 +302,8 @@ class DR2MosaicScienceLow(DR2MosaicScience):
 
 
 class DR2Mosaic(DR2MosaicAuxiliaryMapping):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, dest_uri, hierarchy, observable, observation)
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
@@ -363,10 +356,10 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
             mosaic_artifact = None
             source_artifact = None
             for artifact in plane.artifacts.values():
-                if artifact.uri == self._strategy.file_name:
+                if artifact.uri == self._hierarchy.file_name:
                     mosaic_artifact = artifact
                 else:
-                    if artifact.product_type not in [ProductType.PREVIEW, ProductType.THUMBNAIL]:
+                    if len(artifact.parts) > 0:
                         source_artifact = artifact
                 if mosaic_artifact and source_artifact:
                     break
@@ -385,8 +378,8 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
 
 
 class DR2MosaicSciencePolarization(DR2MosaicScience):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, dest_uri, hierarchy, observable, observation)
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
@@ -409,8 +402,8 @@ class DR2MosaicSciencePolarization(DR2MosaicScience):
 
 
 class DR2MosaicSciencePolarizationLow(DR2MosaicSciencePolarization):
-    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
-        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+    def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
+        super().__init__(clients, config, dest_uri, hierarchy, observable, observation)
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
@@ -422,9 +415,8 @@ class DR2MosaicSciencePolarizationLow(DR2MosaicSciencePolarization):
 
 class DR2Raw(cc.TelescopeMapping2):
     def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
-        super().__init__(hierarchy, clients, observable, observation, config)
+        super().__init__(clients, config, hierarchy, observable, observation)
         self._dest_uri = dest_uri
-        self._hierarchy = hierarchy
 
     def accumulate_blueprint(self, bp):
         """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level.
@@ -562,25 +554,25 @@ class DR2Raw(cc.TelescopeMapping2):
                     chunk.position_axis_2 = None
 
 
-def mapping_factory(strategy, clients, observable, observation, config, dest_uri):
+def mapping_factory(clients, config, dest_uri, hierarchy, observable, observation):
     # logging.error('\n'.join(ii for ii in storage_name._headers.keys()))
     # logging.error(dest_uri)
     result = None
     if dest_uri.endswith('MS') or dest_uri.endswith('tar'):
-        result = DR2Raw(clients, config, dest_uri, strategy, observable, observation)
-    elif dest_uri == f'{strategy.scheme}:{strategy.collection}/{strategy.mosaic_id}/mosaic-blanked.fits':
+        result = DR2Raw(clients, config, dest_uri, hierarchy, observable, observation)
+    elif dest_uri == f'{hierarchy.scheme}:{hierarchy.collection}/{hierarchy.mosaic_id}/mosaic-blanked.fits':
         # result = DR2Mosaic(clients, config, dest_uri, strategy, observable, observation)
-        result = DR2Mosaic(strategy, clients, observable, observation, config, dest_uri)
+        result = DR2Mosaic(hierarchy, clients, observable, observation, config, dest_uri)
     else:
-        if strategy.product_id.endswith('low'):
-            if strategy.metadata[0].get('NAXIS') == 2:
-                result = DR2MosaicScienceLow(strategy, clients, observable, observation, config, dest_uri)
+        if hierarchy.product_id.endswith('low'):
+            if hierarchy.metadata[0].get('NAXIS') == 2:
+                result = DR2MosaicScienceLow(clients, config, dest_uri, hierarchy, observable, observation)
             else:
-                result = DR2MosaicSciencePolarizationLow(strategy, clients, observable, observation, config, dest_uri)
+                result = DR2MosaicSciencePolarizationLow(clients, config, dest_uri, hierarchy, observable, observation)
         else:
-            if strategy.metadata[0].get('NAXIS') == 2:
-                result = DR2MosaicScience(strategy, clients, observable, observation, config, dest_uri)
+            if hierarchy.metadata[0].get('NAXIS') == 2:
+                result = DR2MosaicScience(clients, config, dest_uri, hierarchy, observable, observation)
             else:
-                result = DR2MosaicSciencePolarization(strategy, clients, observable, observation, config, dest_uri)
+                result = DR2MosaicSciencePolarization(clients, config, dest_uri, hierarchy, observable, observation)
     logging.debug(f'Created {result.__class__.__name__} for {dest_uri}')
     return result

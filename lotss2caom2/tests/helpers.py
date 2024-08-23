@@ -211,7 +211,6 @@ def _get_vo_mock(_):
     result.text = content
     return result
 
-
 # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&source_pipeline=99977D292AE15486E053164A17ACDB1B&object_type=AveragingPipeline
 
 
@@ -317,3 +316,9 @@ def _get_db_query_mock():
     #     print(len(cells))
         # print(f'::: {row}')
     return results
+
+
+if __name__ == '__main__':
+   t =  _get_db_query_mock()
+   # print(t)
+   print(t[0].file_format)

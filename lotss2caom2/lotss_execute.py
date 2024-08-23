@@ -85,7 +85,8 @@ from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
-from lotss2caom2 import fits2caom2_augmentation, preview_augmentation
+from lotss2caom2 import fits2caom2_augmentation
+from lotss2caom2 import preview_augmentation
 
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
@@ -119,7 +120,6 @@ class LOTSSHierarchyStrategy(HierarchyStrategy):
         result = ProductType.SCIENCE
         if 'rms' in value:
             result = ProductType.NOISE
-        # elif 'blanked' in value or 'pybdsmmask' in value or 'resid' in value:
         elif 'pybdsmmask' in value or 'resid' in value:
             result = ProductType.AUXILIARY
         elif 'weights' in value:
@@ -300,7 +300,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                     elif entry.endswith('.0.hdr'):
                         found_uri = f'{dirname(self._headers_uri)}/{basename(entry).replace(".0.hdr", "")}'
                     if found_uri:
-                        # self._headers[found_uri] = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy = LOTSSHierarchyStrategy(found_uri, self._mosaic_id)
                         temp_strategy.metadata = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy._mosaic_metadata = self._mosaic_metadata
@@ -451,9 +450,9 @@ def execute():
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
+    organizer.choose(META_VISITORS, DATA_VISITORS)
     data_source = TodoFileDataSource(config)
     # TODO - this would need to be consistent between data_sources
-    organizer.choose(META_VISITORS, DATA_VISITORS)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,
@@ -480,8 +479,8 @@ def remote_execute():
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
-    data_source = ASTRONPyVODataSource(config, clients)
     organizer.choose(META_VISITORS, DATA_VISITORS)
+    data_source = ASTRONPyVODataSource(config, clients)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,

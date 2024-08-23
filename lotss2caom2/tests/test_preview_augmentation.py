@@ -71,7 +71,7 @@ import shutil
 from os.path import basename
 from caom2pipe.caom_composable import get_all_artifact_keys
 from caom2pipe.manage_composable import read_obs_from_file
-from lotss2caom2.preview_augmentation import visit
+from lotss2caom2 import preview_augmentation
 from lotss2caom2 import lotss_execute
 
 from mock import Mock, patch
@@ -84,45 +84,40 @@ def pytest_generate_tests(metafunc):
 
 
 @patch('lotss2caom2.preview_augmentation.http_get')
-@patch('lotss2caom2.lotss_execute.http_get')
-@patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, tmp_path, test_name):
-    import logging
-    # logging.getLogger().setLevel(logging.DEBUG)
+def test_preview_augmentation(preview_get_mock, test_config, tmp_path, test_name):
     test_config.change_working_directory(tmp_path)
-    clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
-    def _endpoint_mock(url):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        with open(f'{test_name}/obs.xml') as f:
-            result.text = f.read()
-        return result
-
-    clients_mock.https_session.get.side_effect = _endpoint_mock
-
-    def _http_get_tar_mock(url, fqn, ignore_timeout):
-        logging.error(url)
+    def _http_get_tar_mock(url, fqn, _):
+        import logging
+        logging.error(fqn)
         if url.endswith('preview=true'):
             shutil.copy(f'{test_name}/preview.jpg', fqn)
         else:
             shutil.copy(f'{test_name}/fits_headers.tar', fqn)
 
-    http_get_mock.side_effect = _http_get_tar_mock
     preview_get_mock.side_effect = _http_get_tar_mock
+    clients_mock = Mock()
 
     observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
+    hierarchies = {
+        f'{test_config.scheme}:{test_config.collection}/{basename(test_name)}/mosaic.fits':
+            lotss_execute.LOTSSHierarchyStrategy(entry='mosaic.fits', mosaic_id=f'{basename(test_name)}'),
+        f'{test_config.scheme}:{test_config.collection}/{basename(test_name)}/low-mosaic-blanked.fits':
+            lotss_execute.LOTSSHierarchyStrategy(entry='low-mosaic-blanked.fits', mosaic_id=f'{basename(test_name)}'),
+    }
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     test_config.working_directory = test_name
-    for hierarchy in expander.hierarchies.values():
+    for hierarchy in hierarchies.values():
+        hierarchy._working_directory = tmp_path
+        hierarchy._preview_uri = f'https://vo.astron.nl/getproduct/LoTSS-DR2/{basename(test_name)}?preview=true'
         kwargs = {
-            'strategy': hierarchy,
+            'hierarchy': hierarchy,
             'config': test_config,
         }
-        observation = visit(observation, **kwargs)
+        observation = preview_augmentation.visit(observation, **kwargs)
 
     artifact_keys = get_all_artifact_keys(observation)
     assert len(artifact_keys) == 11, f'wrong number of artifacts {len(artifact_keys)}'
