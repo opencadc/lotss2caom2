@@ -263,20 +263,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                     elif 'ObservationId=' in access_url:
                         self._provenance_uri = access_url
                         self._logger.debug(f'Found Provenance at {self._provenance_uri}')
-
-                # Accomodate the difference between the 6 files in the VOTable listing, and the 7 fits headers in the
-                # tar file.
-                # "mosaic-blanked.fits.0.hdr" is the extra.
-                # if len(self._hierarchies) == 6:
-                #     append_storage_name = None
-                #     for key in self._hierarchies:
-                #         if '/mosaic-weights' in key:
-                #             temp = key.replace('-weights', '-blanked')
-                #             self._hierarchies[storage_name.file_uri] = storage_name
-                    # if append_storage_name:
-                    #     append_storage_name = LOTSSHierarchyStrategy(temp, self._mosaic_id)
-                    #     append_storage_name._mosaic_metadata = self._mosaic_metadata
-                    #     self._logger.debug(f'Append {temp} to storage names.')
             else:
                 self._logger.warning(f'Encountered {error_message} when querying {self._related_products_uri}')
         self._logger.debug(f'End _get_related_products_metadata')

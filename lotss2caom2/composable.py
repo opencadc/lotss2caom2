@@ -92,6 +92,13 @@ What I think the order of operations is (pagination is probably not involved):
 The supported task type will be INGEST (no data will be transferred, so no SCRAPE/STORE/MODIFY).
 
 A re-ingest will always hit ASTRON, as there's no data at CADC to scrape.
+
+For the raw Plane:
+  1. From the vo table query, there will be a URL that points to the lofar_obsids value (s?). Follow that
+     url to find the link to the Correlated Data Product listing. That is the list of Provenance
+     inputs.
+
+     Do this with awe.
 """
 
 import logging

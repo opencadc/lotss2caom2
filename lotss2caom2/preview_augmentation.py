@@ -71,7 +71,7 @@ import os
 import shutil
 
 from caom2 import ReleaseType, ProductType
-from caom2pipe.manage_composable import CadcException, get_artifact_metadata, http_get, PreviewVisitor
+from caom2pipe.manage_composable import CadcException, get_artifact_metadata, http_get, PreviewMeta, PreviewVisitor
 
 
 def search_for_file(strategy, file_name, working_directory):
@@ -96,79 +96,63 @@ def search_for_file(strategy, file_name, working_directory):
     return fqn
 
 
-class LOTSSPreview(PreviewVisitor):
+class LOTSSPreview:
     """
     Generate a small thumbnail from a previously existing preview image. Override most of the existing
     class, because the original science file is unnecessary.
     """
 
-    def __init__(self):
-        super().__init__(uses_data=False)
+    def __init__(self, **kwargs):
         self._logger = logging.getLogger(self.__class__.__name__)
         self._release_type = ReleaseType.META
         self._mime_type = 'image/jpeg'
-        self._config = None
-        self._clients = None
-        # self._config = kwargs.get('config')
-        # if self._config is None:
-        #     raise CadcException('Visitor needs a config parameter.')
-        # self._clients = kwargs.get('clients')
-        # if self._clients is None or self._clients.data_client is None:
-        #     self._logger.warning('Visitor needs a clients.data_client parameter to store previews.')
-        # self._strategy = kwargs.get('strategy')
-        # if self._strategy is None:
-        #     raise CadcException('Visitor needs a strategy parameter.')
-        self._delete_list = []
-        # keys are uris, values are lists, where the 0th entry is a file name, and the 1st entry is the artifact type
-        self._previews = {}
-        self._report = None
-        self._hdu_list = None
-        self._ext = None
-        self._input_fqn = None
-        self._preview_fqn = None
-        self._thumb_fqn = None
-
-    @property
-    def report(self):
-        return self._report
-
-    def visit(self, observation, **kwargs):
         self._config = kwargs.get('config')
         if self._config is None:
             raise CadcException('Visitor needs a config parameter.')
         self._clients = kwargs.get('clients')
         if self._clients is None or self._clients.data_client is None:
             self._logger.warning('Visitor needs a clients.data_client parameter to store previews.')
-        hierarchy = kwargs.get('hierarchy')
-        if hierarchy is None:
+        self._strategy = kwargs.get('hierarchy')
+        if self._strategy is None:
             raise CadcException('Visitor needs a hierarchy parameter.')
+        self._delete_list = []
+        # keys are uris, values are lists, where the 0th entry is a file name, and the 1st entry is the artifact type
+        self._previews = {}
+        self._report = None
+        self._hdu_list = None
+        self._ext = None
+        self._input_fqn = search_for_file(self._strategy, 'preview.jpg', self._strategy.working_directory)
+        self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.prev)
+        self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.thumb)
+
+    @property
+    def report(self):
+        return self._report
+
+    def visit(self, observation):
         count = 0
-        self._input_fqn = search_for_file(hierarchy, 'preview.jpg', hierarchy.working_directory)
-        self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), hierarchy.prev)
-        self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), hierarchy.thumb)
-        if hierarchy.product_id in observation.planes.keys():
-            plane = observation.planes[hierarchy.product_id]
-            if not hierarchy.prev_uri in plane.artifacts.keys():
+        if self._strategy.product_id in observation.planes.keys():
+            plane = observation.planes[self._strategy.product_id]
+            if not self._strategy.prev_uri in plane.artifacts.keys():
                 self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
-                count += self._do_prev(hierarchy, plane, observation.observation_id)
+                count += self._do_prev(plane, observation.observation_id)
                 self._augment_artifacts(plane)
                 self._delete_list_of_files()
         self._logger.info(f'Changed {count} artifacts during preview augmentation for {observation.observation_id}.')
         self._report = {'artifacts': count}
         return observation
-
-    def generate_plots(self, hierarchy, obs_id):
+    def generate_plots(self, obs_id):
         count = 0
-        self._logger.debug(f'Begin generate_plots for {obs_id} from {hierarchy.prev_uri}')
-        if hierarchy.prev_uri:
-            http_get(hierarchy.prev_uri, self._input_fqn, self._config.http_get_timeout)
+        self._logger.debug(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
+        if self._strategy._preview_uri:
+            http_get(self._strategy._preview_uri, self._input_fqn, self._config.http_get_timeout)
             if os.path.exists(self._input_fqn):
                 self._logger.info(f'Retrieved {self._input_fqn}')
                 shutil.copy(self._input_fqn, self._preview_fqn)
-                self.add_preview(hierarchy.prev_uri, hierarchy.prev, ProductType.PREVIEW)
+                self.add_preview(self._strategy.prev_uri, self._strategy.prev, ProductType.PREVIEW)
                 count += self._gen_thumbnail()
                 if count == 1:
-                    self.add_preview(hierarchy.thumb_uri, hierarchy.thumb, ProductType.THUMBNAIL)
+                    self.add_preview(self._strategy.thumb_uri, self._strategy.thumb, ProductType.THUMBNAIL)
         self._logger.debug(f'End generate_plots')
         return count
 
@@ -205,34 +189,29 @@ class LOTSSPreview(PreviewVisitor):
                     self._logger.warning(f'Deleting {entry}')
                     os.unlink(entry)
 
-    def _do_prev(self, hierarchy, plane, obs_id):
-        self.generate_plots(hierarchy, obs_id)
+    def _do_prev(self, plane, obs_id):
+        self.generate_plots(obs_id)
         if self._hdu_list is not None:
             # astropy says https://docs.astropy.org/en/stable/io/fits/index.html#working-with-large-files
             self._hdu_list.close()
             del self._hdu_list[self._ext].data
             del self._hdu_list
-        self._store_smalls(hierarchy)
+        self._store_smalls()
         return len(self._previews)
 
-    def _store_smalls(self, hierarchy):
+    def _store_smalls(self):
         if self._clients is not None and self._clients.data_client is not None:
-            for uri in self._previews.keys():
-                self._clients.data_client.put(hierarchy.working_directory, uri)
+            for uri, entry in self._previews.items():
+                self._clients.data_client.put(self._strategy.working_directory, uri)
 
     def _gen_thumbnail(self):
         self._logger.debug(f'Generating thumbnail {self._thumb_fqn}.')
         count = 0
         if os.path.exists(self._preview_fqn):
             # keep import local
-            # import matplotlib.image as image
-            # thumb = image.thumbnail(self._preview_fqn, self._thumb_fqn, scale=0.25)
-            import sys
-            msg = [f'{k}:{v}' for k, v in sys.modules.items() if 'mage' in k]
-            logging.error(msg)
-            from PIL import Image
-            img = Image.open(self._preview_fqn)
-            img.thumbnail((256, 256))
+            import matplotlib.image as image
+
+            thumb = image.thumbnail(self._preview_fqn, self._thumb_fqn, scale=0.25)
             if thumb is not None:
                 count = 1
         else:
@@ -250,6 +229,6 @@ class LOTSSPreview(PreviewVisitor):
         return count
 
 
-# def visit(observation, **kwargs):
-#     previewer = LOTSSPreview(**kwargs)
-#     return previewer.visit(observation)
+def visit(observation, **kwargs):
+    previewer = LOTSSPreview(**kwargs)
+    return previewer.visit(observation)

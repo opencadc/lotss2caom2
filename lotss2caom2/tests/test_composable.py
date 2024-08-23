@@ -138,8 +138,8 @@ def test_run_remote_do_one_mock(run_mock, clients_mock, data_source_mock, change
 
 
 @patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext.unset')
-@patch('lotss2caom2.lotss_execute.LOTSSPreview.visit')
-@patch('lotss2caom2.lotss_execute.LoTSSFits2caom2Visitor.visit')
+@patch('lotss2caom2.preview_augmentation.LOTSSPreview.visit')
+@patch('lotss2caom2.fits2caom2_augmentation.LoTSSFits2caom2Visitor.visit')
 @patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._expand')
 @patch('lotss2caom2.lotss_execute.ASTRONClientCollection')
 def test_run_client_mock(
