@@ -68,16 +68,16 @@
 
 import shutil
 
-from caom2pipe.execute_composable import OrganizeWithContext, ScrapeContext
+from caom2pipe.execute_composable import MetaVisitExpander, OrganizeWithContext
 from caom2pipe.manage_composable import Config, Observable2, TaskType
-from lotss2caom2.lotss_execute import execute, LOTSSHierarchyStrategyContext, remote_execute
+from lotss2caom2.lotss_execute import DATA_VISITORS, execute, LOTSSHierarchyStrategyContext, META_VISITORS, remote_execute
 from mock import ANY, call, patch
 from unittest import skip
 
 import helpers
 
 
-@patch('lotss2caom2.lotss_execute.query_endpoint_session')
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_data_dir, tmp_path):
@@ -103,19 +103,7 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
 
     http_get_mock.side_effect = _http_get_mock
 
-    def _session_mock(url, _):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        result.raise_for_status = lambda: None
-        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
-            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
-                result.content = f.read()
-        else:
-            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
-                result.content = f.read()
-        return result
-
-    session_mock.side_effect = _session_mock
+    session_mock.side_effect = helpers._get_db_query_mock
 
     test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
     assert test_subject is not None, 'ctor'
@@ -123,9 +111,8 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
     test_mosaic_id = 'P000+23'
     test_subject.expand(test_mosaic_id)
 
-    # assert len(test_subject.hierarchies) == 251, f'wrong header length {len(test_subject.hierarchies)}'
+    assert len(test_subject.hierarchies) == 250, f'wrong header length {len(test_subject.hierarchies)}'
     assert 'astron:LOTSS/P000+23/mosaic.fits' not in test_subject.hierarchies.keys(), 'the renaming bug is back'
-    assert len(test_subject.hierarchies) == 7, f'wrong uris len {len(test_subject.hierarchies)}'
 
     test_uri_prefix = f'{test_config.scheme}:{test_config.collection}/{test_mosaic_id}/'
     for check in [test_subject.hierarchies.keys()]:
@@ -136,14 +123,25 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
         assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
         assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
         assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
-        assert f'{test_config.scheme}:{test_config.collection}/L762093_SAP001_SB243_uv.MS' in check, f'{check.__class__.__name__} MS'
+        assert f'{test_config.scheme}:{test_config.collection}/L664568_SB484_uv.MS_614524cc.tar' in check, f'{check.__class__.__name__} MS'
 
 
-@patch('lotss2caom2.preview_augmentation.http_get')
-@patch('lotss2caom2.lotss_execute.query_endpoint_session')
+@patch('lotss2caom2.fits2caom2_augmentation.visit')
+@patch('lotss2caom2.preview_augmentation.visit')
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_organize_nominal(clients_mock, http_get_mock, session_mock, preview_mock, test_config, test_data_dir, tmp_path, change_test_dir):
+def test_organize_nominal(
+    clients_mock,
+    http_get_mock,
+    session_mock,
+    preview_mock,
+    visit_mock,
+    test_config,
+    test_data_dir,
+    tmp_path,
+    change_test_dir,
+):
     # one mosaic id, seven files
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
@@ -162,32 +160,26 @@ def test_organize_nominal(clients_mock, http_get_mock, session_mock, preview_moc
 
     http_get_mock.side_effect = _http_get_mock
 
-    def _session_mock(url, _):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        result.raise_for_status = lambda: None
-        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
-            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
-                result.content = f.read()
-        else:
-            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
-                result.content = f.read()
-        return result
+    session_mock.side_effect = helpers._get_db_query_mock
+    clients_mock.metadata_client.read.side_effect = helpers._observation
 
-    session_mock.side_effect = _session_mock
-    clients_mock.metadata_client.read.side_effect = lambda collection, obs_id: None
+    def _visit_mock(observation, **kwargs):
+        import logging
+        logging.error(f'yes, no??????? {observation}')
+        return observation
 
-    def _preview_mock_side_effect(ign1, ign2, ign3):
-        shutil.copy(f'{test_data_dir}/P000+23/preview.jpg', tmp_path)
-
-    preview_mock.side_effect = _preview_mock_side_effect
+    preview_mock.side_effect = _visit_mock
+    visit_mock.side_effect = _visit_mock
 
     test_context = LOTSSHierarchyStrategyContext(clients_mock, test_config)
 
     test_config.task_types = [TaskType.INGEST]
     test_config.change_working_directory(tmp_path)
     test_observable = Observable2(test_config)
-    test_subject = OrganizeWithContext(clients_mock, test_config, test_observable, test_context, VISITORS)
+    test_subject = OrganizeWithContext(test_config, test_context, clients_mock, test_observable)
+    test_subject.choose(META_VISITORS, DATA_VISITORS)
+    assert len(test_subject._executors) == 1, len(test_subject._executors)
+    assert isinstance(test_subject._executors[0], MetaVisitExpander), test_subject._executors
     for entry in [
         'file_name.fits',
         'cadc:COLLECTION/file_name.fits',

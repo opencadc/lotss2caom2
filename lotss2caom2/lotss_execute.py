@@ -350,7 +350,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._get_headers_metadata()
         for hierarchy in self._hierarchies.values():
             hierarchy._preview_uri = self._preview_uri
-        # self._get_provenance_metadata()
+        self._get_provenance_metadata()
         self._logger.debug(f'End expand with {len(self._hierarchies)} hierarchies.')
         return self._hierarchies
 

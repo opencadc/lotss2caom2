@@ -82,10 +82,12 @@ def pytest_generate_tests(metafunc):
     obs_id_list = glob.glob(f'{metafunc.config.invocation_dir}/data/P*')
     metafunc.parametrize('test_name', obs_id_list)
 
+
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
 @patch('lotss2caom2.preview_augmentation.http_get')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, tmp_path, test_name):
+def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, provenance_mock, test_config, tmp_path, test_name):
     import logging
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
@@ -114,8 +116,10 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
     artifact_keys = get_all_artifact_keys(observation)
     if observation.observation_id == 'P124+62_dr2':
         assert len(artifact_keys) == 250, f'pre-condition artifact count {len(artifact_keys)}'
+        provenance_mock.side_effect = helpers._get_db_query_mock
     else:
         assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
+        provenance_mock.return_value = []
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     test_config.working_directory = test_name

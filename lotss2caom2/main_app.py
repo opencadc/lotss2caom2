@@ -100,8 +100,8 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
         self._logger.debug('Begin accumulate_bp.')
         super().accumulate_blueprint(bp)
 
-        release_date = '2023-01-01T00:00:00.000'
-        bp.set('Observation.metaRelease', release_date)
+        # From this page: https://vo.astron.nl/lotss_dr2/q/query_mosaics/info, sidebar item "Created"
+        release_date = '2021-08-25T00:00:00.000'
         bp.set('Observation.type', 'OBJECT')
         bp.set('DerivedObservation.members', [])
 
@@ -419,7 +419,7 @@ class DR2MosaicSciencePolarizationLow(DR2MosaicSciencePolarization):
 
 class DR2Raw(cc.TelescopeMapping2):
     def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):
-        super().__init__(clients, config, hierarchy, observable, observation)
+        super().__init__(hierarchy, clients, observable, observation, config)
         self._dest_uri = dest_uri
 
     def accumulate_blueprint(self, bp):
@@ -431,7 +431,6 @@ class DR2Raw(cc.TelescopeMapping2):
         super().accumulate_blueprint(bp)
 
         release_date = self._strategy.metadata.release_date
-        bp.set('Observation.metaRelease', release_date)
         bp.set('Observation.type', 'OBJECT')
         bp.set('Observation.target.type', 'field')
 
@@ -508,8 +507,8 @@ class DR2Raw(cc.TelescopeMapping2):
         for plane in self._observation.planes.values():
             if plane.product_id != self._strategy.product_id:
                 if plane.provenance and len(plane.provenance.inputs) < 1:
-                    plane_uri = cc.build_plane_uri(
-                        self._strategy.collection, self._strategy.obs_id, self._strategy.product_id
+                    _, plane_uri = cc.make_plane_uri(
+                        self._strategy.obs_id, self._strategy.product_id, self._strategy.collection
                     )
                     plane_inputs = TypedSet(PlaneURI,)
                     plane_inputs.add(plane_uri)

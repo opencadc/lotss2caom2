@@ -131,20 +131,23 @@ class LOTSSPreview:
 
     def visit(self, observation):
         count = 0
-        if self._strategy.product_id in observation.planes.keys():
-            plane = observation.planes[self._strategy.product_id]
-            if not self._strategy.prev_uri in plane.artifacts.keys():
-                self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
-                count += self._do_prev(plane, observation.observation_id)
-                self._augment_artifacts(plane)
-                self._delete_list_of_files()
+        # preview generation only occurs for the mosaic and mosaic_low planes
+        if hasattr(self._strategy, 'mosaic_id'):
+            if self._strategy.product_id in observation.planes.keys():
+                plane = observation.planes[self._strategy.product_id]
+                if not self._strategy.prev_uri in plane.artifacts.keys():
+                    self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
+                    count += self._do_prev(plane, observation.observation_id)
+                    self._augment_artifacts(plane)
+                    self._delete_list_of_files()
         self._logger.info(f'Changed {count} artifacts during preview augmentation for {observation.observation_id}.')
         self._report = {'artifacts': count}
         return observation
+
     def generate_plots(self, obs_id):
         count = 0
-        self._logger.debug(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
         if self._strategy._preview_uri:
+            self._logger.debug(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
             http_get(self._strategy._preview_uri, self._input_fqn, self._config.http_get_timeout)
             if os.path.exists(self._input_fqn):
                 self._logger.info(f'Retrieved {self._input_fqn}')

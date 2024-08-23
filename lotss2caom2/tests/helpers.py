@@ -68,6 +68,7 @@
 
 import numpy as np
 from astropy.table import Table
+from caom2 import Algorithm, SimpleObservation
 
 
 def _search_id_list_mock(ignore_query):
@@ -317,6 +318,13 @@ def _get_db_query_mock():
         # print(f'::: {row}')
     return results
 
+
+def _observation(collection, observation_id):
+    return SimpleObservation(
+        algorithm=Algorithm(name='exposure'),
+        collection=collection,
+        observation_id=observation_id,
+    )
 
 if __name__ == '__main__':
    t =  _get_db_query_mock()

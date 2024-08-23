@@ -89,19 +89,19 @@ def pytest_generate_tests(metafunc):
 
 
 @patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
-@patch('lotss2caom2.lotss_execute.query_endpoint_session')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_main_app(
     clients_mock,
     http_get_mock,
-    session_mock,
     retrieve_provenance_mock,
     test_name,
     test_data_dir,
     test_config,
     tmp_path,
 ):
+    import logging
+    # logging.getLogger('DR2Mosaic').setLevel(logging.DEBUG)
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -120,20 +120,10 @@ def test_main_app(
 
     http_get_mock.side_effect = _http_get_mock
 
-    def _session_mock(url, _):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        result.raise_for_status = lambda: None
-        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
-            with open(f'{test_data_dir}/provenance/progenitor.html') as f:
-                result.content = f.read()
-        else:
-            with open(f'{test_data_dir}/provenance/source_data_products.html') as f:
-                result.content = f.read()
-        return result
-    session_mock.side_effect = _session_mock
-
-    retrieve_provenance_mock.side_effect = helpers._get_db_query_mock
+    if 'P124' in test_name:
+        retrieve_provenance_mock.side_effect = helpers._get_db_query_mock
+    else:
+        retrieve_provenance_mock.return_value = []
 
     expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
     actual_fqn = expected_fqn.replace('expected', 'actual')

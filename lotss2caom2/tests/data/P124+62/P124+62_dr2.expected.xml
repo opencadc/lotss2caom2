@@ -2,7 +2,6 @@
 <caom2:Observation xmlns:caom2="http://www.opencadc.org/caom2/xml/v2.4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="caom2:DerivedObservation" caom2:id="76f4709a-3945-4214-befc-802582294e5b">
   <caom2:collection>LOTSS</caom2:collection>
   <caom2:observationID>P124+62_dr2</caom2:observationID>
-  <caom2:metaRelease>2023-01-01T00:00:00.000</caom2:metaRelease>
   <caom2:algorithm>
     <caom2:name>mosaic</caom2:name>
   </caom2:algorithm>
@@ -35,8 +34,8 @@
   <caom2:planes>
     <caom2:plane caom2:id="4c469c76-5510-4b82-b004-a21583dd3c12">
       <caom2:productID>P124+62_mosaic</caom2:productID>
-      <caom2:metaRelease>2023-01-01T00:00:00.000</caom2:metaRelease>
-      <caom2:dataRelease>2023-01-01T00:00:00.000</caom2:dataRelease>
+      <caom2:metaRelease>2021-08-25T00:00:00.000</caom2:metaRelease>
+      <caom2:dataRelease>2021-08-25T00:00:00.000</caom2:dataRelease>
       <caom2:dataProductType>image</caom2:dataProductType>
       <caom2:calibrationLevel>4</caom2:calibrationLevel>
       <caom2:provenance>
@@ -619,8 +618,8 @@
     </caom2:plane>
     <caom2:plane caom2:id="c2dc0343-d154-4c24-95df-61fdc6f67f7a" caom2:lastModified="2024-01-04T23:35:07.883" caom2:maxLastModified="2024-01-04T23:35:07.883" caom2:metaChecksum="md5:65a135277c6b0e469e4f712367667ad1" caom2:accMetaChecksum="md5:d4089745197f828033064c523e262f02" caom2:metaProducer="lotss2caom2/0.1.0">
       <caom2:productID>P124+62_mosaic_low</caom2:productID>
-      <caom2:metaRelease>2023-01-01T00:00:00.000</caom2:metaRelease>
-      <caom2:dataRelease>2023-01-01T00:00:00.000</caom2:dataRelease>
+      <caom2:metaRelease>2021-08-25T00:00:00.000</caom2:metaRelease>
+      <caom2:dataRelease>2021-08-25T00:00:00.000</caom2:dataRelease>
       <caom2:dataProductType>image</caom2:dataProductType>
       <caom2:calibrationLevel>4</caom2:calibrationLevel>
       <caom2:provenance>
