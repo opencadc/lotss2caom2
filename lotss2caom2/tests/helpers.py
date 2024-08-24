@@ -81,7 +81,9 @@ def _search_id_list_mock(ignore_query):
 def _search_mosaic_id_mock(query_string):
     # the query return value is pyvo.dal.tap.TAPResults, and the individual masked arrays are numpy.ma.core.MaskedArray
     # but for the purposes of testing a list of dicts has the same behaviour
-    if 'P000' in query_string:
+    # service = vo.dal.TAPService('https://vo.astron.nl/tap')
+    # results = service.search(f"SELECT * from lotss_dr2.mosaics WHERE mosaic_id = '{mosaic_id}'")
+    if 'P000+23' in query_string:
         result = [
             {
                 'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P000%2B23',
@@ -128,7 +130,7 @@ def _search_mosaic_id_mock(query_string):
                 'adler32': '8eefe6e9',
             }
         ]
-    else:
+    elif 'P124+62' in query_string:
         result = [
             {
                 'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P124%2B62',
@@ -175,6 +177,95 @@ def _search_mosaic_id_mock(query_string):
                 'adler32': '865c7c66',
             }
         ]
+    elif 'P005+21' in query_string:
+        result = [
+            {
+                'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P005%2B21',
+                'owner': '',
+                'embargo': '',
+                'mime': 'image/fits',
+                'accsize': 740666880,
+                'centeralpha': 5.03954,
+                'centerdelta': 20.9288,
+                'imageTitle': 'P005+21_mosaic-blanked.fits',
+                'instid': 'LOFAR.HBA',
+                'dateobs': 58668.1213425924,
+                'nAxes': 2,
+                'pixelsize': [9622, 9622],
+                'pixelScale': [0.0004166669968981296, 0.0004166669968981296],
+                'refframe': 'ICRS',
+                'wcs_equinox': 2000.0,
+                'wcs_projection': 'SIN',
+                'wcs_refpixel': [4811.0, 4811.0],
+                'wcs_refvalues': [5.03954, 20.9288],
+                'wcs_cdmatrix': [-0.0004166669968981296, 0.0, 0.0, 0.0004166669968981296],
+                'bandpassid': '120-168MHz',
+                'bandpassunit': 'm',
+                'bandpassrefval': 2.08189,
+                'bandpasshi': 2.49827,
+                'bandpasslo': 1.78448,
+                'pixflags': 'Z',
+                'coverage': [
+                    7.158540286752091,
+                    18.91097641889946,
+                    7.2160261134913455,
+                    22.92018514662428,
+                    2.8626012677244765,
+                    22.920179486636123,
+                    2.9200990414869863,
+                    18.91097090833646,
+                ],
+                'mosaic_id': 'P005+21',
+                'related_products': 'https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/%7E%3FLoTSS-DR2/P005%2B21',
+                'lofar_obsids': [727372, 734329],
+                'data_pid': '21.12136/85b13e46-acb7-4b58-af65-5f5e12aef98d',
+                'adler32': 'dddca9d7',
+            }
+        ]
+    elif 'P002+18' in query_string:
+        result = [{
+            'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P002%2B18',
+            'owner': '',
+            'embargo': '',
+            'mime': 'image/fits',
+            'accsize': 833955840,
+            'centeralpha': 2.1779,
+            'centerdelta': 18.3938,
+            'imageTitle': 'P002+18_mosaic-blanked.fits',
+            'instid': 'LOFAR.HBA',
+            'dateobs': 58830.5910648149,
+            'nAxes': 2,
+            'pixelsize': [10210, 10210],
+            'pixelScale': [0.0004166669968981296, 0.0004166669968981296],
+            'refframe': 'ICRS',
+            'wcs_equinox': 2000.0,
+            'wcs_projection': 'SIN',
+            'wcs_refpixel': [5105.0, 5105.0],
+            'wcs_refvalues': [2.1779, 18.3938],
+            'wcs_cdmatrix': [-0.0004166669968981296, 0.0, 0.0, 0.0004166669968981296],
+            'bandpassid': '120-168MHz',
+            'bandpassunit': 'm',
+            'bandpassrefval': 2.08189,
+            'bandpasshi': 2.49827,
+            'bandpasslo': 1.78448,
+            'pixflags': 'Z',
+            'coverage': [
+                4.393656223264431,
+                16.25365835830698,
+                4.449063431589719,
+                20.508061174463997,
+                359.90629143539604,
+                20.50805595644316,
+                359.96170949604596,
+                16.253653267521848,
+            ],
+            'mosaic_id': 'P002+18',
+            'related_products': 'https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/%7E%3FLoTSS-DR2/P002%2B18',
+            'lofar_obsids': [762095],
+            'data_pid': '21.12136/4d6cb08b-6897-4cc9-b6b1-456690e0a141',
+            'adler32': 'b56b94c3',
+        }]
+
     return result
 
 
@@ -215,7 +306,7 @@ def _get_vo_mock(_):
 # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&source_pipeline=99977D292AE15486E053164A17ACDB1B&object_type=AveragingPipeline
 
 
-def _get_db_query_mock():
+def _map_db_query(file_name):
     results = []
     from collections import namedtuple
     CorrelatedDataProduct = namedtuple(
@@ -226,7 +317,7 @@ def _get_db_query_mock():
         'MinimalArtifact',
         'content_checksum',
     )
-    with open(f'/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_664568.htm') as f:
+    with open(file_name) as f:
         content = f.read()
 
     from bs4 import BeautifulSoup
@@ -235,9 +326,10 @@ def _get_db_query_mock():
     table_header = soup.find_all('thead')
     table_body = soup.find_all('tbody')
     print(len(table_body))
-    print(table_body[3])
+    table_body_length = len(table_body)
+    print(table_body[table_body_length - 1])
     file_infos = {}
-    for bodies in table_body[2:]:
+    for bodies in table_body[(table_body_length - 1):]:
         file_rows = bodies.find_all('tr')
         file_name = None
         content_checksum = None
@@ -253,20 +345,8 @@ def _get_db_query_mock():
             file_infos[file_name] = MinimalArtifact(content_checksum)
 
     rows = table_body[0].findAll('tr')
-    # print(len(rows))
-    # html = ascii.HTML()
-    # print(len(table_header))
-    # print(table_header)
     columns = table_header[0].text.split('\n')
     for index, column in enumerate(columns):
-        # print(f'{index} {column}' )
-    # y = html.read(tables)
-    # print(dir(y))
-    # print(type(y))
-    # print(len(tables))
-    # print(len(table_body))
-    # print(type(table_body[0]))
-    # print(dir(table_body[0]))
         for row in rows:
 
             cells = row.findAll('td')
@@ -319,6 +399,20 @@ def _get_db_query_mock():
     return results
 
 
+def _get_db_query_mock_P164():
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_664568.htm')
+
+
+def _get_db_query_mock_P005A():
+    # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=90C703E9A9705084E053144A17AC6B3C
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_734329.htm')
+
+
+def _get_db_query_mock_P005B():
+    # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=8CEF25CF085D6A53E053164A17AC7525
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_727372.htm')
+
+
 def _observation(collection, observation_id):
     return SimpleObservation(
         algorithm=Algorithm(name='exposure'),
@@ -326,7 +420,7 @@ def _observation(collection, observation_id):
         observation_id=observation_id,
     )
 
-if __name__ == '__main__':
-   t =  _get_db_query_mock()
+# if __name__ == '__main__':
+   # t =  _get_db_query_mock()
    # print(t)
-   print(t[0].file_format)
+   # print(t[0].file_format)

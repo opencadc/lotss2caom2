@@ -84,10 +84,14 @@ What I think the order of operations is (pagination is probably not involved):
 2. For each Mosaic ID, get all the metadata from lotss_dr2.mosaics
     - query the lotss_dr2.mosaics table
     - then query the related_products page - this is where the links for the file headers are found
+        - curl --output obs.xml
+            https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/~%3FLoTSS-DR2/<mosaic id>
     - get the file headers for each mosaic and process each header
-        - 1 Plane / Mosaic
-        - n Artifacts / Plane - one for each link on the related_products page - or just 1 for each of the
-        files in the header package?
+        - 2 Planes / Mosaic
+        -   one mosaic plane with 5 Artifacts
+        -   one mosaic low plane with 2 Artifacts
+3. Provenance
+        - 1 Plane / entry in the `lofar_obsids` field (e.g. P005+21 has two)
 
 The supported task type will be INGEST (no data will be transferred, so no SCRAPE/STORE/MODIFY).
 

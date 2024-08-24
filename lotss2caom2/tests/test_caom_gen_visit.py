@@ -121,7 +121,9 @@ def test_main_app(
     http_get_mock.side_effect = _http_get_mock
 
     if 'P124' in test_name:
-        retrieve_provenance_mock.side_effect = helpers._get_db_query_mock
+        retrieve_provenance_mock.side_effect = helpers._get_db_query_mock_P164
+    elif 'P005' in test_name:
+        retrieve_provenance_mock.side_effect = [helpers._get_db_query_mock_P005B(), helpers._get_db_query_mock_P005A()]
     else:
         retrieve_provenance_mock.return_value = []
 

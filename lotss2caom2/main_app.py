@@ -67,8 +67,8 @@
 #
 
 """
-This module implements the ObsBlueprint mapping, as well as the workflow
-entry point that executes the workflow.
+This module implements the ObsBlueprint mapping, as well as the workflow entry point that executes the workflow.
+
 """
 
 import logging
@@ -77,13 +77,28 @@ import logging
 # from urllib.parse import urlparse
 # from astropy import units
 
-from caom2 import CoordCircle2D, PlaneURI, TypedSet, ValueCoord2D
+from caom2 import CoordCircle2D, DataProductType, PlaneURI, TypedSet, ValueCoord2D
 from caom2utils.blueprints import _to_float
 from caom2pipe.astro_composable import get_datetime_mjd, get_geocentric_location
 from caom2pipe import caom_composable as cc
 
 
 __all__ = ['mapping_factory']
+
+
+def _get_float(key, index, metadata):
+    value = metadata.get(key)[index]
+    return value if isinstance(value, float) else value.item()
+
+
+def _get_int(key, metadata):
+    value = metadata.get(key)
+    return value if isinstance(value, int) else value.item()
+
+
+def _get_int_index(key, index, metadata):
+    value = metadata.get(key)[index]
+    return value if isinstance(value, int) else value.item()
 
 
 class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
@@ -135,19 +150,6 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
 
         bp.set('Artifact.productType', self._strategy.get_artifact_product_type(self._dest_uri))
         bp.set('Artifact.releaseType', 'data')
-
-        bp.configure_time_axis(5)
-        bp.set('Chunk.time.axis.axis.ctype', 'TIME')
-        bp.set('Chunk.time.axis.axis.cunit', 'd')
-        bp.set('Chunk.time.axis.function.naxis', 1)
-        # TODO - query to determine whether the observation was 8 or 16 hours
-        bp.set('Chunk.time.axis.function.delta', 8 / 24.0)
-        bp.set('Chunk.time.axis.function.refCoord.pix', 0.5)
-        bp.set('Chunk.time.axis.function.refCoord.val', self._mosaic_metadata.get('dateobs'))
-        # resolution units are 'd'
-        bp.set('Chunk.time.resolution', 8 / 24.0)
-        bp.set('Chunk.time.timesys', 'UTC')
-
         self._logger.debug('Done accumulate_bp.')
 
     def update(self):
@@ -176,6 +178,9 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
                             chunk.naxis = 3
         self._logger.debug('End update')
         return self._observation
+
+    def update_time(self):
+        pass
 
     def _get_observation_proposal_keywords(self, ext):
         # values from https://www.aanda.org/articles/aa/full_html/2022/03/aa42484-21/aa42484-21.html
@@ -312,7 +317,7 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
         super().accumulate_blueprint(bp)
 
         bp.set('Artifact.contentType', 'application/fits')
-        bp.set('Artifact.contentLength', self._mosaic_metadata.get('accsize').item())
+        bp.set('Artifact.contentLength', _get_int('accsize', self._mosaic_metadata))
 
         bp.configure_position_axes((1, 2))
         bp.set('Chunk.position.coordsys', self._mosaic_metadata.get('refframe'))
@@ -323,20 +328,16 @@ class DR2Mosaic(DR2MosaicAuxiliaryMapping):
         # bp.set('Chunk.position.axis.axis2.ctype', self._mosaic_metadata['wcs_projection'])
         bp.set('Chunk.position.axis.axis2.ctype', 'DEC--SIN')
         bp.set('Chunk.position.axis.axis2.cunit', 'deg')
-        cd_matrix = self._mosaic_metadata.get('wcs_cdmatrix')
-        bp.set('Chunk.position.axis.function.cd11', cd_matrix[0].item())
-        bp.set('Chunk.position.axis.function.cd12', cd_matrix[1].item())
-        bp.set('Chunk.position.axis.function.cd21', cd_matrix[2].item())
-        bp.set('Chunk.position.axis.function.cd22', cd_matrix[3].item())
-        pixel_size = self._mosaic_metadata.get('pixelsize')
-        bp.set('Chunk.position.axis.function.dimension.naxis1', pixel_size[0].item())
-        bp.set('Chunk.position.axis.function.dimension.naxis2', pixel_size[1].item())
-        ref_pixel = self._mosaic_metadata.get('wcs_refpixel')
-        ref_values = self._mosaic_metadata.get('wcs_refvalues')
-        bp.set('Chunk.position.axis.function.refCoord.coord1.pix', ref_pixel[0].item())
-        bp.set('Chunk.position.axis.function.refCoord.coord1.val', ref_values[0].item())
-        bp.set('Chunk.position.axis.function.refCoord.coord2.pix', ref_pixel[1].item())
-        bp.set('Chunk.position.axis.function.refCoord.coord2.val', ref_values[1].item())
+        bp.set('Chunk.position.axis.function.cd11', _get_float('wcs_cdmatrix', 0, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.cd12', _get_float('wcs_cdmatrix', 1, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.cd21', _get_float('wcs_cdmatrix', 2, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.cd22', _get_float('wcs_cdmatrix', 3, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.dimension.naxis1', _get_int_index('pixelsize', 0, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.dimension.naxis2', _get_int_index('pixelsize', 1, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.refCoord.coord1.pix',  _get_float('wcs_refpixel', 0, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.refCoord.coord1.val',  _get_float('wcs_refvalues', 0, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.refCoord.coord2.pix',  _get_float('wcs_refpixel', 1, self._mosaic_metadata))
+        bp.set('Chunk.position.axis.function.refCoord.coord2.val',  _get_float('wcs_refvalues', 1, self._mosaic_metadata))
         # 6"
         bp.set('Chunk.position.resolution', 0.001666)
 
@@ -483,6 +484,13 @@ class DR2Raw(cc.TelescopeMapping2):
         # TODO - guess
         bp.set('Chunk.energy.specsys', 'TOPOCENT')
 
+        # 22-08-24 Aida Ahmadi
+        # There is a caveat that in interferometry the integration time is defined as something else (usually on the
+        # order of ~1 second → 'Integration Interval' on the LTA). This is a limitation of having to adapt terms
+        # from optical astronomy that have been used as standard to radio and interferometry needs. On the CAOM
+        # side, the values should also be updated in the Chunks. From looking at the Chunk.time explanation here,
+        # this should be ingested under 'exposure' rather than 'resolution' and 'cdelt' where it is currently
+        # ingested.
         bp.configure_time_axis(4)
         bp.set('Chunk.time.axis.axis.ctype', 'TIME')
         bp.set('Chunk.time.axis.axis.cunit', 'd')
@@ -494,7 +502,8 @@ class DR2Raw(cc.TelescopeMapping2):
         end_mjd = get_datetime_mjd(self._strategy.metadata.end_time)
         if end_mjd:
             bp.set('Chunk.time.axis.range.end.val', end_mjd.value)
-        bp.set('Chunk.time.resolution', _to_float(self._strategy.metadata.duration) / (24.0 * 3600.0) )
+        # exposure units are 's'
+        bp.set('Chunk.time.exposure', _to_float(self._strategy.metadata.duration))
         bp.set('Chunk.time.timesys', 'UTC')
 
         self._logger.debug('Done accumulate_bp.')
@@ -504,23 +513,26 @@ class DR2Raw(cc.TelescopeMapping2):
         and CAOM attributes).
         """
         super().update()
+        provenance_plane_uris = TypedSet(PlaneURI,)
         for plane in self._observation.planes.values():
-            if plane.product_id != self._strategy.product_id:
-                if plane.provenance and len(plane.provenance.inputs) < 1:
-                    _, plane_uri = cc.make_plane_uri(
-                        self._strategy.obs_id, self._strategy.product_id, self._strategy.collection
-                    )
-                    plane_inputs = TypedSet(PlaneURI,)
-                    plane_inputs.add(plane_uri)
-                    plane.provenance.inputs.update(plane_inputs)
-            for artifact in plane.artifacts.values():
-                for part in artifact.parts.values():
-                    for chunk in part.chunks:
-                        # no cut-out support for any axes
-                        # chunk.position_axis_1 = 1
-                        # chunk.position_axis_2 = 2
-                        chunk.time_axis = None
-                        chunk.energy_axis = None
+            if plane.data_product_type == DataProductType.MEASUREMENTS:
+                _, plane_uri = cc.make_plane_uri(
+                    self._strategy.obs_id, self._strategy.product_id, self._strategy.collection
+                )
+                provenance_plane_uris.add(plane_uri)
+
+        if len(provenance_plane_uris) > 0:
+            for plane in self._observation.planes.values():
+                if plane.data_product_type != DataProductType.MEASUREMENTS:
+                    plane.provenance.inputs.update(provenance_plane_uris)
+                for artifact in plane.artifacts.values():
+                    for part in artifact.parts.values():
+                        for chunk in part.chunks:
+                            # no cut-out support for any axes
+                            # chunk.position_axis_1 = 1
+                            # chunk.position_axis_2 = 2
+                            chunk.time_axis = None
+                            chunk.energy_axis = None
         return self._observation
 
     def _get_observation_proposal_keywords(self, ext):
@@ -555,6 +567,78 @@ class DR2Raw(cc.TelescopeMapping2):
                     chunk.naxis = None
                     chunk.position_axis_1 = None
                     chunk.position_axis_2 = None
+
+    def update_time(self):
+        """
+        22-08-24 Aida Ahmadi
+
+        The values should come from the awe query for the measurement set(s) associated with the FITS image but on
+        the 'Interferometric Data' level and not the 'Averaging Pipeline' level (i.e. here:
+        https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=740B81E0588B278FE053144A17ACFF94
+        and not
+        https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=664568).
+
+        The latter (Averaging Pipeline) start/end times refer to how long the averaging pipeline took to run.
+
+        Use the start/end times of the measurement sets associated with mosaic and mosaic_low images and to get
+        the durations also from the awe query.
+
+        In some cases, to reach the needed sensitivity (usually for low declination sources) a different observing
+        strategy was adopted where a few blocks of shorter duration observations were made. This means that to produce
+        the FITS images for low declination sources, more than one group of measurement sets have been used. An
+        example is target P005+21, where at the bottom of the list on the ASTRON VO page
+        (https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/~%3FLoTSS-DR2/P005%2B21) you can see
+        two progenitor links. One that goes to SAS ID 727372
+        (https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=727372)
+        and one that goes to SAS ID 734329
+        (https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=734329).
+
+        Now in such a case, observations can even be years apart. Use the earliest start date and the latest end date from the
+        LTA awe query at the 'Interferometric Data' level (i.e.
+        https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=90C703E9A9705084E053144A17AC6B3C
+        and
+        https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=8CEF25CF085D6A53E053164A17AC7525)
+
+        AND to include in one of the CADC UI columns and in the CAOM model the total duration which should be the sum
+        of the two durations reported for each of the processes: 28799.0+14399.0 (in seconds, so ~12 hours).
+        """
+        if len(self._observation.planes) >= 3:
+            from caom2 import Axis, CoordAxis1D, CoordBounds1D, CoordRange1D, DataProductType, RefCoord, TemporalWCS, TypedList
+
+            # assume that the MS Artifacts all have the same TemporalWCS, so the first instance is sufficient to build
+            # the collection
+            copy_from_chunks = []
+            for plane in self._observation.planes.values():
+                if plane.data_product_type == DataProductType.MEASUREMENTS:
+                    for artifact in plane.artifacts.values():
+                        for part in artifact.parts.values():
+                            for chunk in part.chunks:
+                                if chunk.time and chunk.time.axis and chunk.time.axis.range:
+                                    copy_from_chunks.append(chunk)
+                                    break
+                            break
+                        break
+
+            if len(copy_from_chunks) > 0:
+                samples = TypedList(CoordRange1D,)
+                exposure = 0.0
+                for chunk in copy_from_chunks:
+                    exposure += chunk.time.exposure
+                    start_ref_coord = RefCoord(pix=0.5, val=chunk.time.axis.range.start.val)
+                    end_ref_coord = RefCoord(pix=1.5, val=chunk.time.axis.range.end.val)
+                    sample = CoordRange1D(start_ref_coord, end_ref_coord)
+                    samples.append(sample)
+
+                bounds = CoordBounds1D(samples=samples)
+                axis = CoordAxis1D(Axis(ctype='TIME', cunit='d'), bounds=bounds)
+                t = TemporalWCS(axis=axis, timesys='UTC', exposure=exposure)
+
+                for plane in self._observation.planes.values():
+                    if plane.data_product_type != DataProductType.MEASUREMENTS:
+                        for artifact in plane.artifacts.values():
+                            for part in artifact.parts.values():
+                                for chunk in part.chunks:
+                                    chunk.time = t
 
 
 def mapping_factory(clients, config, dest_uri, hierarchy, observable, observation):

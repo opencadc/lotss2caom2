@@ -147,6 +147,7 @@ class LoTSSFits2caom2Visitor(cc.Fits2caom2Visitor):
                     product_id=self._strategy.product_id,
                 )
                 self._observation = telescope_data.update()
+            telescope_data.update_time()
         except Caom2Exception as e:
             self._logger.debug(traceback.format_exc())
             self._logger.warning(

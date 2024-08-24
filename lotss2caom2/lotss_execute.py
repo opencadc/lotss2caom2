@@ -203,8 +203,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._preview_uri = None
         # the URL that links to the tar of the FITS headers from the related_products URI
         self._headers_uri = None
-        # the progenitor link to the raw data
-        self._provenance_uri = None
+        # the progenitor links to the raw data
+        self._provenance_uris = []
         self._raw_table = {}
         self._http_get_timeout = config.http_get_timeout
 
@@ -261,8 +261,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                             # storage_name._destination_uris.append(access_url)
                             self._logger.debug(f'Found FITS URL {access_url}')
                     elif 'ObservationId=' in access_url:
-                        self._provenance_uri = access_url
-                        self._logger.debug(f'Found Provenance at {self._provenance_uri}')
+                        self._provenance_uris.append(access_url)
+                        self._logger.debug(f'Found Provenance at {access_url}')
             else:
                 self._logger.warning(f'Encountered {error_message} when querying {self._related_products_uri}')
         self._logger.debug(f'End _get_related_products_metadata')
@@ -297,18 +297,19 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
 
     def _get_provenance_metadata(self):
         """Retrieve available metadata for raw inputs."""
-        if self._provenance_uri:
-            self._logger.debug(f'Begin _get_provenance_metadata from {self._provenance_uri}')
-            self._raw_table = self._retrieve_provenance_metadata()
-            sas_id = self._provenance_uri.split('=')[-1]
-            for index, row in enumerate(self._raw_table):
-                if len(row) > 0:
-                    if row.file_name:
-                        strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, row.file_name)
-                    else:
-                        strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, str(index))
-                    strategy.metadata = row
-                    self._hierarchies[strategy.file_uri] = strategy
+        if self._provenance_uris:
+            for provenance_uri in self._provenance_uris:
+                self._logger.debug(f'Begin _get_provenance_metadata from {provenance_uri}')
+                self._raw_table = self._retrieve_provenance_metadata()
+                sas_id = provenance_uri.split('=')[-1]
+                for index, row in enumerate(self._raw_table):
+                    if len(row) > 0:
+                        if row.file_name:
+                            strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, row.file_name)
+                        else:
+                            strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, str(index))
+                        strategy.metadata = row
+                        self._hierarchies[strategy.file_uri] = strategy
             self._logger.debug('End _get_provenance_metadata')
 
     def _retrieve_provenance_metadata(self):

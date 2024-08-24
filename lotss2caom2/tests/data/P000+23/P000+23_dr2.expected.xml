@@ -126,24 +126,6 @@
                     <caom2:restfrq>143650000.0</caom2:restfrq>
                     <caom2:bandpassName>120-168MHz</caom2:bandpassName>
                   </caom2:energy>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                 </caom2:chunk>
               </caom2:chunks>
             </caom2:part>
@@ -226,24 +208,6 @@
                     <caom2:restfrq>143650000.0</caom2:restfrq>
                     <caom2:bandpassName>120-168MHz</caom2:bandpassName>
                   </caom2:energy>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                 </caom2:chunk>
               </caom2:chunks>
             </caom2:part>
@@ -357,24 +321,6 @@
                     <caom2:bandpassName>120-168MHz</caom2:bandpassName>
                     <caom2:restfrq>143650000.0</caom2:restfrq>
                   </caom2:energy>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                 </caom2:chunk>
               </caom2:chunks>
             </caom2:part>
@@ -437,24 +383,6 @@
                     <caom2:equinox>2000.0</caom2:equinox>
                     <caom2:resolution>0.001666</caom2:resolution>
                   </caom2:position>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                   <caom2:polarization>
                     <caom2:axis>
                       <caom2:axis>
@@ -531,24 +459,6 @@
                     <caom2:equinox>2000.0</caom2:equinox>
                     <caom2:resolution>0.001666</caom2:resolution>
                   </caom2:position>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                 </caom2:chunk>
               </caom2:chunks>
             </caom2:part>
@@ -611,24 +521,6 @@
                     <caom2:equinox>2000.0</caom2:equinox>
                     <caom2:resolution>0.001666</caom2:resolution>
                   </caom2:position>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                   <caom2:polarization>
                     <caom2:axis>
                       <caom2:axis>
@@ -706,24 +598,6 @@
                     <caom2:equinox>2000.0</caom2:equinox>
                     <caom2:resolution>0.001666</caom2:resolution>
                   </caom2:position>
-                  <caom2:time>
-                    <caom2:axis>
-                      <caom2:axis>
-                        <caom2:ctype>TIME</caom2:ctype>
-                        <caom2:cunit>d</caom2:cunit>
-                      </caom2:axis>
-                      <caom2:function>
-                        <caom2:naxis>1</caom2:naxis>
-                        <caom2:delta>0.3333333333333333</caom2:delta>
-                        <caom2:refCoord>
-                          <caom2:pix>0.5</caom2:pix>
-                          <caom2:val>58452.6351273148</caom2:val>
-                        </caom2:refCoord>
-                      </caom2:function>
-                    </caom2:axis>
-                    <caom2:timesys>UTC</caom2:timesys>
-                    <caom2:resolution>0.3333333333333333</caom2:resolution>
-                  </caom2:time>
                   <caom2:polarization>
                     <caom2:axis>
                       <caom2:axis>
