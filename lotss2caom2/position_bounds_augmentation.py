@@ -117,7 +117,7 @@ def visit(observation, **kwargs):
         for plane in observation.planes.values():
             if plane.data_product_type != DataProductType.MEASUREMENTS:
                 for artifact in plane.artifacts.values():
-                    if not artifact.uri.endswith('mosaic-blanked.fits'):
+                    if not artifact.uri.endswith('/mosaic-blanked.fits'):
                         for part in artifact.parts.values():
                             for chunk in part.chunks:
                                 chunk.position = original_chunk.position
