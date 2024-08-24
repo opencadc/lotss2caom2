@@ -86,11 +86,12 @@ from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyCo
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
 from lotss2caom2 import fits2caom2_augmentation
+from lotss2caom2 import position_bounds_augmentation
 from lotss2caom2 import preview_augmentation
 
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
-DATA_VISITORS = []
+DATA_VISITORS = [position_bounds_augmentation]
 
 
 class LOTSSHierarchyStrategy(HierarchyStrategy):

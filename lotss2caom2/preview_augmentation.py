@@ -131,10 +131,11 @@ class LOTSSPreview:
 
     def visit(self, observation):
         count = 0
-        # preview generation only occurs for the mosaic and mosaic_low planes
+        # preview generation with this algorithm only occurs for the mosaic plane
         if hasattr(self._strategy, 'mosaic_id'):
-            if self._strategy.product_id in observation.planes.keys():
-                plane = observation.planes[self._strategy.product_id]
+            product_id = f'{self._strategy.mosaic_id}_mosaic'
+            if product_id in observation.planes.keys():
+                plane = observation.planes[product_id]
                 if not self._strategy.prev_uri in plane.artifacts.keys():
                     self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
                     count += self._do_prev(plane, observation.observation_id)

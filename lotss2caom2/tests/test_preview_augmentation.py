@@ -116,9 +116,12 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, pro
     artifact_keys = get_all_artifact_keys(observation)
     if observation.observation_id == 'P124+62_dr2':
         assert len(artifact_keys) == 250, f'pre-condition artifact count {len(artifact_keys)}'
-        provenance_mock.side_effect = helpers._get_db_query_mock
+        provenance_mock.side_effect = helpers._get_db_query_mock_P164
     else:
-        assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
+        if observation.observation_id == 'P005+21_dr2':
+            assert len(artifact_keys) == 493, f'pre-condition artifact count {len(artifact_keys)}'
+        else:
+            assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
         provenance_mock.return_value = []
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
@@ -134,6 +137,9 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, pro
 
     artifact_keys = get_all_artifact_keys(observation)
     if observation.observation_id == 'P124+62_dr2':
-        assert len(artifact_keys) == 254, f'wrong number of artifacts {len(artifact_keys)}'
+        assert len(artifact_keys) == 252, f'wrong number of artifacts {len(artifact_keys)}'
     else:
-        assert len(artifact_keys) == 11, f'wrong number of artifacts {len(artifact_keys)}'
+        if observation.observation_id == 'P005+21_dr2':
+            assert len(artifact_keys) == 495, f'pre-condition artifact count {len(artifact_keys)}'
+        else:
+            assert len(artifact_keys) == 9, f'wrong number of artifacts {len(artifact_keys)}'
