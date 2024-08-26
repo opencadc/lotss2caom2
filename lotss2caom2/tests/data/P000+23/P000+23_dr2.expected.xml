@@ -1,6 +1,7 @@
 <caom2:Observation xmlns:caom2="http://www.opencadc.org/caom2/xml/v2.4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="caom2:DerivedObservation" caom2:id="780e21c3-e10e-425c-bc1f-10c717c3f82d" caom2:lastModified="2024-01-04T23:29:01.163" caom2:maxLastModified="2024-01-04T23:29:01.163" caom2:metaChecksum="md5:112a7b735152fd795686cc099a653a7d" caom2:accMetaChecksum="md5:54a0926ba69426cf5688babd077a6842" caom2:metaProducer="lotss2caom2/0.1.0">
   <caom2:collection>LOTSS</caom2:collection>
   <caom2:observationID>P000+23_dr2</caom2:observationID>
+  <caom2:metaRelease>2021-08-25T00:00:00.000</caom2:metaRelease>
   <caom2:algorithm>
     <caom2:name>mosaic</caom2:name>
   </caom2:algorithm>

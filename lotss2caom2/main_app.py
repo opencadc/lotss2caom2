@@ -117,6 +117,7 @@ class DR2MosaicAuxiliaryMapping(cc.TelescopeMapping2):
 
         # From this page: https://vo.astron.nl/lotss_dr2/q/query_mosaics/info, sidebar item "Created"
         release_date = '2021-08-25T00:00:00.000'
+        bp.set('Observation.metaRelease', release_date)
         bp.set('Observation.type', 'OBJECT')
         bp.set('DerivedObservation.members', [])
 

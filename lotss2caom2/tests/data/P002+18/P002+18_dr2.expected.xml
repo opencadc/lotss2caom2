@@ -2,6 +2,7 @@
 <caom2:Observation xmlns:caom2="http://www.opencadc.org/caom2/xml/v2.4" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="caom2:DerivedObservation" caom2:id="a547b2c4-a081-4adc-ad62-83cea714b42b">
   <caom2:collection>LOTSS</caom2:collection>
   <caom2:observationID>P002+18_dr2</caom2:observationID>
+  <caom2:metaRelease>2021-08-25T00:00:00.000</caom2:metaRelease>
   <caom2:algorithm>
     <caom2:name>mosaic</caom2:name>
   </caom2:algorithm>
