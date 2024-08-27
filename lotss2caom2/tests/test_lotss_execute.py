@@ -81,6 +81,9 @@ import helpers
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
 def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_data_dir, tmp_path):
+    # url2 - P000+23 = https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778
+    # url3 - P000+23 = https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=7CB88D2B6B6F3778E053164A17ACB062
+
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -103,7 +106,7 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
 
     http_get_mock.side_effect = _http_get_mock
 
-    session_mock.side_effect = helpers._get_db_query_mock
+    session_mock.side_effect = helpers._get_db_query_mock_P164
 
     test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
     assert test_subject is not None, 'ctor'
@@ -124,6 +127,73 @@ def test_strategy(clients_mock, http_get_mock, session_mock, test_config, test_d
         assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
         assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
         assert f'{test_config.scheme}:{test_config.collection}/L664568_SB484_uv.MS_614524cc.tar' in check, f'{check.__class__.__name__} MS'
+
+
+@patch('lotss2caom2.lotss_execute.query_endpoint_session')
+@patch('lotss2caom2.lotss_execute.http_get')
+@patch('lotss2caom2.clients.ASTRONClientCollection')
+def test_strategy_https(clients_mock, http_get_mock, session_mock, test_config, test_data_dir, tmp_path):
+    test_config.change_working_directory(tmp_path)
+    clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
+
+    def _endpoint_mock(url):
+        assert (
+            url == 'https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/%7E%3FLoTSS-DR2/P000%2B23'
+        ), f'wrong url {url}'
+        result = type('response', (), {})()
+        result.close = lambda: None
+        with open(f'{test_data_dir}/P000+23/obs.xml') as f:
+            result.text = f.read()
+        return result
+
+    clients_mock.https_session.get.side_effect = _endpoint_mock
+
+    def _http_get_mock(url, fqn, ignore_timeout):
+        assert url == 'https://lofar-webdav.grid.surfsara.nl:2881/P000+23/fits_headers.tar', f'wrong url {url}'
+        assert fqn == '/tmp/fits_headers.tar', f'wrong url {fqn}'
+        shutil.copy(f'{test_data_dir}/P000+23/fits_headers.tar', '/tmp')
+
+    http_get_mock.side_effect = _http_get_mock
+
+    def _session_mock(url, ignore_session):
+        # first if - P000+23 = https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&
+        #   mode=query_result_page_user&ObservationId=689778
+        # second if - P000+23 = https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&
+        #   product=CorrelatedDataProduct&pipeline_object_id=7CB88D2B6B6F3778E053164A17ACB062
+        result = type('response', (), {})()
+        result.close = lambda: None
+        result.raise_for_status = lambda: None
+        if url == 'https://lta.lofar.eu/Lofar?project=ALL&product=all_observation_pipeline&mode=query_result_page_user&ObservationId=689778':
+            with open(f'{test_data_dir}/provenance/p000+23_averaging_pipeline.html') as f:
+                result.content = f.read()
+        elif url == 'https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=7CB88D2B6B6F3778E053164A17ACB062':
+            with open(f'{test_data_dir}/provenance/p000+23_correlated_data_products.html') as f:
+                result.content = f.read()
+        else:
+            assert False, url
+        return result
+
+    session_mock.side_effect = _session_mock
+
+    test_subject = LOTSSHierarchyStrategyContext(clients_mock, test_config)
+    assert test_subject is not None, 'ctor'
+
+    test_mosaic_id = 'P000+23'
+    test_subject.expand(test_mosaic_id)
+
+    assert len(test_subject.hierarchies) == 250, f'wrong header length {len(test_subject.hierarchies)}'
+    assert 'astron:LOTSS/P000+23/mosaic.fits' not in test_subject.hierarchies.keys(), 'the renaming bug is back'
+
+    test_uri_prefix = f'{test_config.scheme}:{test_config.collection}/{test_mosaic_id}/'
+    for check in [test_subject.hierarchies.keys()]:
+        assert f'{test_uri_prefix}low-mosaic-blanked.fits' in check, f'{check.__class__.__name__} low-mosaic-blanked'
+        assert f'{test_uri_prefix}low-mosaic-weights.fits' in check, f'{check.__class__.__name__} low-mosaic-weights'
+        assert f'{test_uri_prefix}mosaic-blanked.fits' in check, f'{check.__class__.__name__} mosaic-blanked'
+        assert f'{test_uri_prefix}mosaic-weights.fits' in check, f'{check.__class__.__name__} mosaic-weights'
+        assert f'{test_uri_prefix}mosaic.pybdsmmask.fits' in check, f'{check.__class__.__name__} mosaic.pybdsmmask'
+        assert f'{test_uri_prefix}mosaic.resid.fits' in check, f'{check.__class__.__name__} mosaic.resid'
+        assert f'{test_uri_prefix}mosaic-rms.fits' in check, f'{check.__class__.__name__} mosaic.rms'
+        assert f'{test_config.scheme}:{test_config.collection}/L689778_SB006_uv.MS_fb14a2ee.tar' in check, f'{check.__class__.__name__} MS'
 
 
 @patch('lotss2caom2.fits2caom2_augmentation.visit')

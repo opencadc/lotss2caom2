@@ -247,7 +247,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
             if vo_table:
                 for row in vo_table.array:
                     access_url = row['access_url']
-                    # logging.error(access_url)
                     if 'preview' in access_url:
                         self._preview_uri = access_url
                         self._logger.debug(f'Found preview URL {access_url}')
@@ -259,7 +258,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                             strategy = LOTSSHierarchyStrategy(access_url, self._mosaic_id)
                             strategy._mosaic_metadata = self._mosaic_metadata
                             self._hierarchies[strategy.file_uri] = strategy
-                            # storage_name._destination_uris.append(access_url)
                             self._logger.debug(f'Found FITS URL {access_url}')
                     elif 'ObservationId=' in access_url:
                         self._provenance_uris.append(access_url)
@@ -301,7 +299,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         if self._provenance_uris:
             for provenance_uri in self._provenance_uris:
                 self._logger.debug(f'Begin _get_provenance_metadata from {provenance_uri}')
-                self._raw_table = self._retrieve_provenance_metadata()
+                self._raw_table = self._retrieve_provenance_metadata(provenance_uri)
                 sas_id = provenance_uri.split('=')[-1]
                 for index, row in enumerate(self._raw_table):
                     if len(row) > 0:
@@ -313,29 +311,31 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         self._hierarchies[strategy.file_uri] = strategy
             self._logger.debug('End _get_provenance_metadata')
 
-    def _retrieve_provenance_metadata(self):
+    def _retrieve_provenance_metadata(self, provenance_uri):
         self._logger.debug(f'Begin _retrieve_provenance_metadata')
         response = None
         result = None
         try:
-            response = query_endpoint_session(self._provenance_uri, self._session)
+            response = query_endpoint_session(provenance_uri, self._session)
             response.raise_for_status()
             if response is None:
-                self._logger.warning(f'No response from {self._provenance_uri}.')
+                self._logger.warning(f'No response from {provenance_uri}.')
             else:
+                # so ugly and fragile
                 table = self._parse_html_string_for_table(response.content, 'result_table_AveragingPipeline')
                 if table:
-                    source_data_product = table[-1].get('Source DataProduct')
-                    if source_data_product:
-                        self._logger.info(f'Search {source_data_product} for raw metadata.')
-                        response = query_endpoint_session(source_data_product, self._session)
+                    data_product_fragment = table[-1].get('Number Of Correlated DataProducts')
+                    if data_product_fragment:
+                        correlated_data_product = f'https://lta.lofar.eu/{data_product_fragment}'
+                        self._logger.info(f'Search {correlated_data_product} for raw metadata.')
+                        response = query_endpoint_session(correlated_data_product, self._session)
                         response.raise_for_status()
                         if response is None:
-                            self._logger.warning(f'No response from {source_data_product}')
+                            self._logger.warning(f'No response from {correlated_data_product}')
                         else:
-                            result = self._parse_html_string_for_table(
-                                response.content, 'result_table_CorrelatedDataProduct'
-                            )
+                            result = self._map_db_query(response.content)
+                    else:
+                        self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
                 else:
                     self._logger.warning(f'Cannot find result_table_averagingPipeline in {self._provenance_uri}')
         finally:
@@ -372,6 +372,82 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         temp[headers[ii]] = cell.text
                 result.append(temp)
         return result
+
+    def _map_db_query(self, html_string):
+        results = []
+        from collections import namedtuple
+        CorrelatedDataProduct = namedtuple(
+            'CorrelatedDataProduct',
+            'data_product_id central_frequency channel_width start_time end_time ra dec file_name creator integration_interval duration file_format release_date project_name content_type content_checksum'
+        )
+        MinimalArtifact = namedtuple(
+            'MinimalArtifact',
+            'content_checksum',
+        )
+        soup = BeautifulSoup(html_string, features='lxml')
+        table_body = soup.find_all('tbody')
+        # print(len(table_body))
+        table_body_length = len(table_body)
+        # print(table_body[table_body_length - 1])
+        file_infos = {}
+        for bodies in table_body[(table_body_length - 1):]:
+            file_rows = bodies.find_all('tr')
+            file_name = None
+            content_checksum = None
+
+            for file_row in file_rows:
+                cell_content = file_row.find_all('td')
+                if cell_content[0].text == 'Filename':
+                    file_name = cell_content[1].text
+                elif cell_content[0].text == 'Hash Md5':
+                    content_checksum = f'md5:{cell_content[1].text}'
+
+            if file_name:
+                file_infos[file_name] = MinimalArtifact(content_checksum)
+
+        rows = table_body[0].findAll('tr')
+        for row in rows:
+            cells = row.findAll('td')
+            data_product_id = cells[6].text
+            central_frequency = cells[10].text
+            channel_width = cells[11].text
+            start_time = cells[14].text
+            end_time = cells[16].text
+            ra = cells[8].text
+            dec = cells[9].text
+            file_name = cells[27].text
+            creator = cells[3].text
+            integration_interval = cells[13].text
+            duration = cells[15].text
+            file_format = cells[26].text
+            release_date = cells[5].text
+            project_name = cells[2].text
+            content_type = cells[26].text
+
+            file_info = file_infos.get(file_name)
+            if file_info:
+                content_checksum = file_info.content_checksum
+
+            row_content = CorrelatedDataProduct(
+                data_product_id,
+                central_frequency,
+                channel_width,
+                start_time,
+                end_time,
+                ra,
+                dec,
+                file_name,
+                creator,
+                integration_interval,
+                duration,
+                file_format,
+                release_date,
+                project_name,
+                content_type,
+                content_checksum,
+            )
+            results.append(row_content)
+        return results
 
     def set(self, entry):
         # this is here so that the CaomExecutor call doesn't fall over
