@@ -16,7 +16,7 @@ storage_inventory_tap_resource_id: ivo://cadc.nrc.ca/global/luskan
 # file that contains the list of entries to process
 todo_file_name: todo.txt
 data_sources:
-  - vos:test
+  - https://vo.astron.nl/tap
 data_source_extensions:
   - .fits
 # values True False

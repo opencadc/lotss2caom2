@@ -89,6 +89,8 @@ from lotss2caom2 import fits2caom2_augmentation
 from lotss2caom2 import position_bounds_augmentation
 from lotss2caom2 import preview_augmentation
 
+from awlofar.config.startup import *
+from common.database.Context import context
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
 DATA_VISITORS = [position_bounds_augmentation]
@@ -299,7 +301,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         if self._provenance_uris:
             for provenance_uri in self._provenance_uris:
                 self._logger.debug(f'Begin _get_provenance_metadata from {provenance_uri}')
-                self._raw_table = self._retrieve_provenance_metadata(provenance_uri)
+                self._raw_table = self._retrieve_provenance_metadata_2(provenance_uri)
                 sas_id = provenance_uri.split('=')[-1]
                 for index, row in enumerate(self._raw_table):
                     if len(row) > 0:
@@ -334,6 +336,38 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                             self._logger.warning(f'No response from {correlated_data_product}')
                         else:
                             result = self._map_db_query(response.content)
+                    else:
+                        self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
+                else:
+                    self._logger.warning(f'Cannot find result_table_averagingPipeline in {self._provenance_uri}')
+        finally:
+            if response is not None:
+                response.close()
+        self._logger.debug(f'End _retrieve_provenance_metadata')
+        return result
+
+    def _retrieve_provenance_metadata_2(self, provenance_uri):
+        self._logger.debug(f'Begin _retrieve_provenance_metadata')
+        response = None
+        result = None
+        try:
+            response = query_endpoint_session(provenance_uri, self._session)
+            response.raise_for_status()
+            if response is None:
+                self._logger.warning(f'No response from {provenance_uri}.')
+            else:
+                # so ugly and fragile
+                table = self._parse_html_string_for_table(response.content, 'result_table_AveragingPipeline')
+                if table:
+                    data_product_fragment = table[-1].get('Number Of Correlated DataProducts')
+                    if data_product_fragment:
+                        pipeline_object_id = data_product_fragment.split('pipeline_object_id=')[1]
+                        self._logger.info(f'Search {pipeline_object_id} for raw metadata.')
+                        query = CorrelatedDataProduct.pipeline.object_id == f'{pipeline_object_id}'
+                        if len(query) > 0:
+                            result = self._map_db_query_2(query)
+                        else:
+                            self._logger.warning(f'No records for {pipeline_object_id} of {data_product_fragment}')
                     else:
                         self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
                 else:
@@ -445,6 +479,32 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                 project_name,
                 content_type,
                 content_checksum,
+            )
+            results.append(row_content)
+        return results
+
+    def _map_db_query_2(self, query_result):
+        results = []
+        from collections import namedtuple
+        CDP = namedtuple(
+            'CDP',
+            'data_product_id central_frequency channel_width start_time end_time ra dec file_name integration_interval duration file_format release_date project_name'
+        )
+        for row in query_result:
+            row_content = CDP(
+                row.get('CorrelatedDataProduct.dataProductIdentifier'),
+                row.get('CorrelatedDataProduct.centralFrequency'),
+                row.get('CorrelatedDataProduct.channelWidth'),
+                row.get('CorrelatedDataProduct.startTime'),
+                row.get('CorrelatedDataProduct.endTime'),
+                row.get('CorrelatedDataProduct.subArrayPointing.pointing.rightAscension'),
+                row.get('CorrelatedDataProduct.subArrayPointing.pointing.declination'),
+                row.get('CorrelatedDataProduct.filename'),
+                row.get('CorrelatedDataProduct.integrationInterval'),
+                row.get('CorrelatedDataProduct.duration'),
+                row.get('CorrelatedDataProduct.fileFormat'),
+                row.get('CorrelatedDataProduct.releaseDate'),
+                row.get('CorrelatedDataProduct.projectInformation.projectCode'),
             )
             results.append(row_content)
         return results
