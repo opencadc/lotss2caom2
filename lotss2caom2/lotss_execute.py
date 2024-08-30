@@ -80,7 +80,7 @@ from caom2 import ProductType
 from caom2pipe.astro_composable import get_vo_table_session, make_headers_from_file
 from caom2pipe.data_source_composable import TodoFileDataSource
 from caom2pipe.execute_composable import OrganizeWithContext
-from caom2pipe.manage_composable import Config, http_get, Observable2, query_endpoint_session
+from caom2pipe.manage_composable import Config, exec_cmd, http_get, Observable2, query_endpoint_session
 from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
@@ -89,8 +89,8 @@ from lotss2caom2 import fits2caom2_augmentation
 from lotss2caom2 import position_bounds_augmentation
 from lotss2caom2 import preview_augmentation
 
-from awlofar.config.startup import *
-from common.database.Context import context
+# from awlofar.config.startup import *
+# from common.database.Context import context
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
 DATA_VISITORS = [position_bounds_augmentation]
@@ -301,7 +301,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         if self._provenance_uris:
             for provenance_uri in self._provenance_uris:
                 self._logger.debug(f'Begin _get_provenance_metadata from {provenance_uri}')
-                self._raw_table = self._retrieve_provenance_metadata_2(provenance_uri)
+                # self._raw_table = self._retrieve_provenance_metadata_2(provenance_uri)
+                self._raw_table = self._retrieve_provenance_metadata(provenance_uri)
                 sas_id = provenance_uri.split('=')[-1]
                 for index, row in enumerate(self._raw_table):
                     if len(row) > 0:
@@ -329,13 +330,13 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                     data_product_fragment = table[-1].get('Number Of Correlated DataProducts')
                     if data_product_fragment:
                         correlated_data_product = f'https://lta.lofar.eu/{data_product_fragment}'
+                        cmd = f'curl --output /tmp/x.htm --header \"cookie: lta#lofar=table_columns_store%3DeJxtU8lyEzEQNQGSkD0hCwkBFFazBfiEKQ-pyiUxmCK65KCZ6YxFyRq3pHHhA1V8OlLLMZPlJvVrdb9-_fR35g-22ny91WolIzCilLrsyiEoqQHvnONMm895rGuqX5A7vEu3jgHhKoP3-AJhciQVlGDxPl_yge-gQFhgqXCAs3w55ExKshMxAJzja83YTzBWVhrn-awP95IeOy7wAb2LF9arapMDLvCNyCUHa30ctJMXEgwu8p1bgdhuie_ejk7KLvM9jx8ZwBp0PmbH2kFphPOcWM_BEFf4lk_4IQdwE1uNPJ2PQTmODdf4diioRMmS2lWsUxkDih5ZXOebzQcp2NzIYcBwg897KIWB_O3XgA_5gb-e1IPMcz29mJaBIkgr_EBFnTuLm7SGnhPGsUASt2KdOvLEbbp-1UVEd4gx7TBMQVt6RNJ3hbHgcJdkjuI0O-Ee7S1RiqLDy_6PyRTfaqGkG-M-kFr_yTYrPDnHp1cd9eymZRhfDHILU4KLgh7w1ZAky75jic1Bk1-eU14KuXdRnPQFGbnjF2yEYtON4ss4cl9oDYqdycL18RXtYRKzrBv8UGeZ0AW-Jqi56nA2I6HwzXWt21e1fsv3A15niTFizLqV9GbTZdOs72j-y17v6b0vGN3xgeQ4zWxoF0MfKWP6KQ-JXAr-1103wifKPPKfUQfVPvMVKl35bw3szEg_A36B-vAf8Wsw9g..\" \"{correlated_data_product}\"'
                         self._logger.info(f'Search {correlated_data_product} for raw metadata.')
-                        response = query_endpoint_session(correlated_data_product, self._session)
-                        response.raise_for_status()
-                        if response is None:
+                        exec_cmd(cmd)
+                        if exists('/tmp/x.htm'):
                             self._logger.warning(f'No response from {correlated_data_product}')
                         else:
-                            result = self._map_db_query(response.content)
+                            result = self._map_db_query_3('/tmp/x.htm')
                     else:
                         self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
                 else:
@@ -406,6 +407,14 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         temp[headers[ii]] = cell.text
                 result.append(temp)
         return result
+
+    def _map_db_query_3(self, file_name):
+        results = []
+        with open(file_name) as f:
+            html_content = f.read()
+            results = self._map_db_query(html_content)
+        # unlink(file_name)
+        return results
 
     def _map_db_query(self, html_string):
         results = []
@@ -484,6 +493,8 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         return results
 
     def _map_db_query_2(self, query_result):
+        # https://www.astron.nl/lofarwiki/doku.php?id=public:lta_tricks#queries
+        # https://www.astro-wise.org/
         results = []
         from collections import namedtuple
         CDP = namedtuple(
