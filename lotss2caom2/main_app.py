@@ -73,10 +73,7 @@ This module implements the ObsBlueprint mapping, as well as the workflow entry p
 
 import logging
 
-from datetime import datetime
-# from os.path import basename, dirname
-# from urllib.parse import urlparse
-# from astropy import units
+from datetime import timedelta
 
 from caom2 import CoordCircle2D, DataProductType, PlaneURI, TypedSet, ValueCoord2D
 from caom2utils.blueprints import _to_float
@@ -502,7 +499,7 @@ class DR2Raw(cc.TelescopeMapping2):
             bp.set('Chunk.time.axis.range.start.val', start_mjd.value)
         bp.set('Chunk.time.axis.range.end.pix', 1.5)
         # end_mjd = get_datetime_mjd(self._strategy.metadata.end_time)
-        end_mjd = start_mjd + datetime(seconds=_to_float(self._strategy.metadata.duration))
+        end_mjd = start_mjd + timedelta(seconds=_to_float(self._strategy.metadata.duration))
         if end_mjd:
             bp.set('Chunk.time.axis.range.end.val', end_mjd.value)
         # exposure units are 's'

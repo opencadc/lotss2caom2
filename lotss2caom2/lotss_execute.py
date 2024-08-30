@@ -334,9 +334,9 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         self._logger.info(f'Search {correlated_data_product} for raw metadata.')
                         exec_cmd(cmd)
                         if exists('/tmp/x.htm'):
-                            self._logger.warning(f'No response from {correlated_data_product}')
-                        else:
                             result = self._map_db_query_3('/tmp/x.htm')
+                        else:
+                            self._logger.warning(f'No response from {correlated_data_product}')
                     else:
                         self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
                 else:
