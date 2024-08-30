@@ -421,7 +421,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         from collections import namedtuple
         CorrelatedDataProduct = namedtuple(
             'CorrelatedDataProduct',
-            'data_product_id central_frequency channel_width start_time end_time ra dec file_name creator integration_interval duration file_format release_date project_name content_type content_checksum'
+            'data_product_id central_frequency channel_width start_time ra dec file_name creator integration_interval duration release_date project_name content_type content_checksum'
         )
         MinimalArtifact = namedtuple(
             'MinimalArtifact',
@@ -451,21 +451,20 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         rows = table_body[0].findAll('tr')
         for row in rows:
             cells = row.findAll('td')
-            data_product_id = cells[6].text
-            central_frequency = cells[10].text
-            channel_width = cells[11].text
-            start_time = cells[14].text
-            end_time = cells[16].text
-            ra = cells[8].text
-            dec = cells[9].text
-            file_name = cells[27].text
-            creator = cells[3].text
-            integration_interval = cells[13].text
-            duration = cells[15].text
-            file_format = cells[26].text
-            release_date = cells[5].text
+            data_product_id = cells[13].text
+            central_frequency = cells[7].text
+            channel_width = cells[8].text
+            start_time = cells[11].text
+            ra = cells[5].text
+            dec = cells[6].text
+            file_name = cells[19].text
+            creator = 'AWTIER0'
+            integration_interval = cells[10].text
+            duration = cells[12].text
+            release_date = cells[3].text
             project_name = cells[2].text
-            content_type = cells[26].text
+            content_type = 'AIPS++/CASA'
+            content_checksum = None
 
             file_info = file_infos.get(file_name)
             if file_info:
@@ -476,14 +475,12 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                 central_frequency,
                 channel_width,
                 start_time,
-                end_time,
                 ra,
                 dec,
                 file_name,
                 creator,
                 integration_interval,
                 duration,
-                file_format,
                 release_date,
                 project_name,
                 content_type,
