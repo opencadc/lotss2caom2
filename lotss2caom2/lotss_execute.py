@@ -79,21 +79,23 @@ from urllib.parse import urlparse
 from caom2 import ProductType
 from caom2pipe.astro_composable import get_vo_table_session, make_headers_from_file
 from caom2pipe.data_source_composable import TodoFileDataSource
-from caom2pipe.execute_composable import OrganizeWithContext
+from caom2pipe.execute_composable import OrganizeWithContext, OrganizeWithHierarchy
 from caom2pipe.manage_composable import Config, exec_cmd, http_get, Observable2, query_endpoint_session
 from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
-from lotss2caom2 import fits2caom2_augmentation
-from lotss2caom2 import position_bounds_augmentation
-from lotss2caom2 import preview_augmentation
+from lotss2caom2 import fits2caom2_augmentation, fits2caom2_augmentation_faster
+from lotss2caom2 import position_bounds_augmentation, position_bounds_augmentation_faster
+from lotss2caom2 import preview_augmentation, preview_augmentation_faster
 
 # from awlofar.config.startup import *
 # from common.database.Context import context
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
+META_VISITORS_FASTER = [fits2caom2_augmentation_faster, preview_augmentation_faster]
 DATA_VISITORS = [position_bounds_augmentation]
+DATA_VISITORS_FASTER = [position_bounds_augmentation_faster]
 
 
 class LOTSSHierarchyStrategy(HierarchyStrategy):
@@ -595,6 +597,37 @@ def execute():
     result |= runner.run_retry()
     runner.report()
     logging.debug('End execute')
+    return result
+
+
+def execute_maybe_faster():
+    logging.debug('Begin execute_maybe_faster')
+    # TODO - should I move the "get_executors" call into the Config constructor? they have to happen right after
+    # each other anyway
+    config = Config()
+    config.get_executors()
+    HierarchyStrategy.collection = config.collection
+    HierarchyStrategy.preview_scheme = config.preview_scheme
+    HierarchyStrategy.scheme = config.scheme
+    HierarchyStrategy.data_source_extension = config.data_source_extensions
+    set_logging(config)
+    observable = Observable2(config)
+    clients = ASTRONClientCollection(config)
+    strategy_context = LOTSSHierarchyStrategyContext(clients, config)
+    organizer = OrganizeWithHierarchy(config, strategy_context, clients, observable)
+    organizer.choose(META_VISITORS_FASTER, DATA_VISITORS_FASTER)
+    data_source = TodoFileDataSource(config)
+    # TODO - this would need to be consistent between data_sources
+    runner = StrategyTodoRunner(
+        config=config,
+        organizer=organizer,
+        data_sources=[data_source],
+        observable=observable,
+    )
+    result = runner.run()
+    result |= runner.run_retry()
+    runner.report()
+    logging.debug('End execute_maybe_faster')
     return result
 
 

@@ -2,7 +2,7 @@
 # ******************  CANADIAN ASTRONOMY DATA CENTRE  *******************
 # *************  CENTRE CANADIEN DE DONNÉES ASTRONOMIQUES  **************
 #
-#  (c) 2023.                            (c) 2023.
+#  (c) 2024.                            (c) 2024.
 #  Government of Canada                 Gouvernement du Canada
 #  National Research Council            Conseil national de recherches
 #  Ottawa, Canada, K1A 0R6              Ottawa, Canada, K1A 0R6
@@ -61,118 +61,68 @@
 #  <http://www.gnu.org/licenses/>.      pas le cas, consultez :
 #                                       <http://www.gnu.org/licenses/>.
 #
-#  $Revision: 4 $
+#  Revision: 4
 #
 # ***********************************************************************
 #
 
-"""
-Implements the default entry point functions for the workflow
-application.
-
-'run' executes based on either provided lists of work, or files on disk.
-'run_incremental' executes incrementally, usually based on time-boxed intervals.
-
-What I think the order of operations is (pagination is probably not involved):
-1. Get the number of records - get the IDs for all the records?
-    - 841 Mosaic IDs, how many files per mosaic?
-        - 1 for P000+23
-        - also 1 for P124+62
-    - max record length == 1000? (confirm this) - from what I can tell, there is no max record length with the
-      TAP service (100,000 rows from the form, anyway - https://vo.astron.nl/__system__/adql/query/form)
-    - 1 Observation / Row from querying lotss_dr2.mosaics from https://vo.astron.nl/tap
-2. For each Mosaic ID, get all the metadata from lotss_dr2.mosaics
-    - query the lotss_dr2.mosaics table
-    - then query the related_products page - this is where the links for the file headers are found
-        - curl --output obs.xml
-            https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/~%3FLoTSS-DR2/<mosaic id>
-    - get the file headers for each mosaic and process each header
-        - 2 Planes / Mosaic
-        -   one mosaic plane with 5 Artifacts
-        -   one mosaic low plane with 2 Artifacts
-3. Provenance
-        - 1 Plane / entry in the `lofar_obsids` field (e.g. P005+21 has two)
-
-The supported task type will be INGEST (no data will be transferred, so no SCRAPE/STORE/MODIFY).
-
-A re-ingest will always hit ASTRON, as there's no data at CADC to scrape.
-
-For the raw Plane:
-  1. From the vo table query, there will be a URL that points to the lofar_obsids value (s?). Follow that
-     url to find the link to the Correlated Data Product listing. That is the list of Provenance
-     inputs.
-
-     Do this with awe.
-"""
-
 import logging
-import sys
-import traceback
 
-from lotss2caom2 import lotss_execute
-
-
-def _run():
-    """
-    Uses a todo file to identify the work to be done.
-
-    :return 0 if successful, -1 if there's any sort of failure. Return status
-        is used by airflow for task instance management and reporting.
-    """
-    return lotss_execute.execute()
+from caom2 import Observation, DataProductType
+from caom2pipe import caom_composable as cc
+from caom2pipe import manage_composable as mc
 
 
-def run():
-    """Wraps _run in exception handling, with sys.exit calls."""
-    try:
-        result = _run()
-        sys.exit(result)
-    except Exception as e:
-        logging.error(e)
-        tb = traceback.format_exc()
-        logging.debug(tb)
-        sys.exit(-1)
+__all__ = ['visit']
 
 
-def _run_maybe_faster():
-    """
-    Uses a todo file to identify the work to be done.
+def visit(observation, **kwargs):
+    assert observation is not None, 'Input parameter must have a value.'
+    assert isinstance(observation, Observation), 'Input parameter must be an Observation'
 
-    :return 0 if successful, -1 if there's any sort of failure. Return status
-        is used by airflow for task instance management and reporting.
-    """
-    return lotss_execute.execute_maybe_faster()
+    working_dir = kwargs.get('working_directory', './')
+    hierarchies = kwargs.get('hierarchies')
+    if hierarchies is None:
+        raise mc.CadcException(f'No hierarchies provided to visitor for obs {observation.observation_id}.')
+    log_file_directory = kwargs.get('log_file_directory')
 
+    for hierarchy in hierarchies.values():
+        logging.info(f'Begin footprint finding for {hierarchy.get_file_fqn(working_dir)}.')
+        count = 0
+        original_chunk = None
+        for plane in observation.planes.values():
+            if plane.data_product_type != DataProductType.MEASUREMENTS:
+                for artifact in plane.artifacts.values():
+                    if artifact.uri.endswith('mosaic-blanked.fits'):
+                        for part in artifact.parts.values():
+                            for chunk in part.chunks:
+                                # -t 10 provides a margin of up to 10 pixels
+                                cc.exec_footprintfinder(
+                                    chunk,
+                                    hierarchy.get_file_fqn(working_dir),
+                                    log_file_directory,
+                                    hierarchy.file_id,
+                                    '-t 10',
+                                )
+                                original_chunk = chunk
+                                count += 1
+                                break
+                            if count == 1:
+                                break  # part
+                    if count == 1:
+                        break  # artifact
+            if count == 1:
+                break  # plane
 
-def run_maybe_faster():
-    """Wraps _run in exception handling, with sys.exit calls."""
-    try:
-        result = _run_maybe_faster()
-        sys.exit(result)
-    except Exception as e:
-        logging.error(e)
-        tb = traceback.format_exc()
-        logging.debug(tb)
-        sys.exit(-1)
+        if original_chunk:
+            for plane in observation.planes.values():
+                if plane.data_product_type != DataProductType.MEASUREMENTS:
+                    for artifact in plane.artifacts.values():
+                        if not artifact.uri.endswith('/mosaic-blanked.fits'):
+                            for part in artifact.parts.values():
+                                for chunk in part.chunks:
+                                    chunk.position = original_chunk.position
+                                    count += 1
 
-
-def _run_remote():
-    """
-    Uses a todo file to identify the work to be done.
-
-    :return 0 if successful, -1 if there's any sort of failure. Return status
-        is used by airflow for task instance management and reporting.
-    """
-    return lotss_execute.remote_execute()
-
-
-def run_remote():
-    """Wraps _run in exception handling, with sys.exit calls."""
-    try:
-        result = _run_remote()
-        sys.exit(result)
-    except Exception as e:
-        logging.error(e)
-        tb = traceback.format_exc()
-        logging.debug(tb)
-        sys.exit(-1)
+    logging.info(f'Completed footprint augmentation. Changed {count} artifacts.')
+    return observation
