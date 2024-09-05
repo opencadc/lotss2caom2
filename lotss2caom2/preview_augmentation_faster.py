@@ -201,13 +201,13 @@ class LOTSSPreview:
             self._hdu_list.close()
             del self._hdu_list[self._ext].data
             del self._hdu_list
-        self._store_smalls()
+        self._store_smalls(hierarchy)
         return len(self._previews)
 
-    def _store_smalls(self):
+    def _store_smalls(self, hierarchy):
         if self._clients is not None and self._clients.data_client is not None:
             for uri, entry in self._previews.items():
-                self._clients.data_client.put(self._strategy.working_directory, uri)
+                self._clients.data_client.put(hierarchy.working_directory, uri)
 
     def _gen_thumbnail(self):
         self._logger.debug(f'Generating thumbnail {self._thumb_fqn}.')
