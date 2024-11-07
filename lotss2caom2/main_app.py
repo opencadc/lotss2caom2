@@ -284,6 +284,27 @@ class DR2MosaicScience(DR2MosaicAuxiliaryMapping):
 
         self._logger.debug('Done accumulate_bp.')
 
+class DR2MosaicScienceLow(DR2MosaicScience):
+    def __init__(self, strategy, clients, observable, observation, config, dest_uri):
+        super().__init__(strategy, clients, observable, observation, config, dest_uri)
+
+    def accumulate_blueprint(self, bp):
+        """Configure the telescope-specific ObsBlueprint at the CAOM model Observation level."""
+        super().accumulate_blueprint(bp)
+        # 20"
+        bp.set('Chunk.position.resolution', 0.00555)
+        bp.configure_energy_axis(4)
+        # TODO how to translate "2 channels per 0.195 MHz subband" to resolution?
+        bp.set('Chunk.energy.specsys', 'TOPOCENT')
+        bp.set('Chunk.energy.bandpassName', self._mosaic_metadata['bandpassid'])
+        bp.set('Chunk.energy.axis.axis.ctype', 'WAVE')
+        bp.set('Chunk.energy.axis.axis.cunit', self._mosaic_metadata['bandpassunit'])
+        bp.set('Chunk.energy.axis.range.start.pix', 0.5)
+        bp.set('Chunk.energy.axis.range.start.val', self._mosaic_metadata['bandpasshi'])
+        bp.set('Chunk.energy.axis.range.end.pix', 1.5)
+        bp.set('Chunk.energy.axis.range.end.val', self._mosaic_metadata['bandpasslo'])
+        self._logger.debug('Done accumulate_bp.')
+
 
 class DR2MosaicScienceLow(DR2MosaicScience):
     def __init__(self, clients, config, dest_uri, hierarchy, observable, observation):

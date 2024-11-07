@@ -136,6 +136,8 @@
           <caom2:uri>astron:LOTSS/P000+23/low-mosaic-weights.fits</caom2:uri>
           <caom2:productType>weight</caom2:productType>
           <caom2:releaseType>data</caom2:releaseType>
+          <caom2:contentType>application/fits</caom2:contentType>
+          <caom2:contentLength>639106560</caom2:contentLength>
           <caom2:parts>
             <caom2:part caom2:id="dd3db8fa-a892-4ef0-9b8f-81bb8bfef96c" caom2:lastModified="2024-01-04T23:29:01.163" caom2:maxLastModified="2024-01-04T23:29:01.163" caom2:metaChecksum="md5:2d8aaee40e57ec3e2bc5b9796f22255c" caom2:accMetaChecksum="md5:1c0f8c38fa07b48ab90c4dda09828fd5">
               <caom2:name>0</caom2:name>
@@ -165,24 +167,33 @@
                       </caom2:bounds>
                       <caom2:function>
                         <caom2:dimension>
-                          <caom2:naxis1>2978</caom2:naxis1>
-                          <caom2:naxis2>2978</caom2:naxis2>
+                          <caom2:naxis1>8938</caom2:naxis1>
+                          <caom2:naxis2>8938</caom2:naxis2>
                         </caom2:dimension>
                         <caom2:refCoord>
                           <caom2:coord1>
-                            <caom2:pix>1489.0</caom2:pix>
+                            <caom2:pix>4469.0</caom2:pix>
                             <caom2:val>0.03125</caom2:val>
                           </caom2:coord1>
                           <caom2:coord2>
-                            <caom2:pix>1489.0</caom2:pix>
+                            <caom2:pix>4469.0</caom2:pix>
                             <caom2:val>23.3953</caom2:val>
                           </caom2:coord2>
                         </caom2:refCoord>
-                        <caom2:cd11>-0.00125</caom2:cd11>
+                        <caom2:cd11>-0.0004166669968981296</caom2:cd11>
                         <caom2:cd12>0.0</caom2:cd12>
                         <caom2:cd21>0.0</caom2:cd21>
-                        <caom2:cd22>0.00125</caom2:cd22>
+                        <caom2:cd22>0.0004166669968981296</caom2:cd22>
                       </caom2:function>
+                      <caom2:bounds>
+                        <caom2:circle>
+                          <caom2:center>
+                            <caom2:coord1>0.03125</caom2:coord1>
+                            <caom2:coord2>23.3953</caom2:coord2>
+                          </caom2:center>
+                          <caom2:radius>1.8620833333333036</caom2:radius>
+                        </caom2:circle>
+                      </caom2:bounds>
                     </caom2:axis>
                     <caom2:coordsys>ICRS</caom2:coordsys>
                     <caom2:equinox>2000.0</caom2:equinox>
