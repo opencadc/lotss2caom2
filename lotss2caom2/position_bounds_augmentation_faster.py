@@ -2,7 +2,7 @@
 # ******************  CANADIAN ASTRONOMY DATA CENTRE  *******************
 # *************  CENTRE CANADIEN DE DONNÉES ASTRONOMIQUES  **************
 #
-#  (c) 2023.                            (c) 2023.
+#  (c) 2024.                            (c) 2024.
 #  Government of Canada                 Gouvernement du Canada
 #  National Research Council            Conseil national de recherches
 #  Ottawa, Canada, K1A 0R6              Ottawa, Canada, K1A 0R6
@@ -61,102 +61,68 @@
 #  <http://www.gnu.org/licenses/>.      pas le cas, consultez :
 #                                       <http://www.gnu.org/licenses/>.
 #
-#  $Revision: 4 $
+#  Revision: 4
 #
 # ***********************************************************************
 #
 
-from mock import patch
+import logging
 
-from lotss2caom2 import fits2caom2_augmentation
-from caom2.diff import get_differences
+from caom2 import Observation, DataProductType
+from caom2pipe import caom_composable as cc
 from caom2pipe import manage_composable as mc
-from lotss2caom2 import lotss_execute
-
-import glob
-import helpers
-import os
-import shutil
-
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
-TEST_DATA_DIR = os.path.join(THIS_DIR, 'data')
 
 
-def pytest_generate_tests(metafunc):
-    obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P*')
-    # obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P000+23')
-    metafunc.parametrize('test_name', obs_id_list)
+__all__ = ['visit']
 
 
-@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
-@patch('lotss2caom2.lotss_execute.http_get')
-@patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_main_app(
-    clients_mock,
-    http_get_mock,
-    retrieve_provenance_mock,
-    test_name,
-    test_data_dir,
-    test_config,
-    tmp_path,
-):
-    import logging
-    # logging.getLogger('DR2Mosaic').setLevel(logging.DEBUG)
-    test_config.change_working_directory(tmp_path)
-    clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
+def visit(observation, **kwargs):
+    assert observation is not None, 'Input parameter must have a value.'
+    assert isinstance(observation, Observation), 'Input parameter must be an Observation'
 
-    def _endpoint_mock(url):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        with open(f'{test_name}/obs.xml') as f:
-            result.text = f.read()
-        return result
+    working_dir = kwargs.get('working_directory', './')
+    hierarchies = kwargs.get('hierarchies')
+    if hierarchies is None:
+        raise mc.CadcException(f'No hierarchies provided to visitor for obs {observation.observation_id}.')
+    log_file_directory = kwargs.get('log_file_directory')
 
-    clients_mock.https_session.get.side_effect = _endpoint_mock
+    for hierarchy in hierarchies.values():
+        logging.info(f'Begin footprint finding for {hierarchy.get_file_fqn(working_dir)}.')
+        count = 0
+        original_chunk = None
+        for plane in observation.planes.values():
+            if plane.data_product_type != DataProductType.MEASUREMENTS:
+                for artifact in plane.artifacts.values():
+                    if artifact.uri.endswith('mosaic-blanked.fits'):
+                        for part in artifact.parts.values():
+                            for chunk in part.chunks:
+                                # -t 10 provides a margin of up to 10 pixels
+                                cc.exec_footprintfinder(
+                                    chunk,
+                                    hierarchy.get_file_fqn(working_dir),
+                                    log_file_directory,
+                                    hierarchy.file_id,
+                                    '-t 10',
+                                )
+                                original_chunk = chunk
+                                count += 1
+                                break
+                            if count == 1:
+                                break  # part
+                    if count == 1:
+                        break  # artifact
+            if count == 1:
+                break  # plane
 
-    def _http_get_mock(url, fqn, ignore_timeout):
-        assert fqn == '/tmp/fits_headers.tar', f'wrong url {fqn}'
-        shutil.copy(f'{test_name}/fits_headers.tar', '/tmp')
+        if original_chunk:
+            for plane in observation.planes.values():
+                if plane.data_product_type != DataProductType.MEASUREMENTS:
+                    for artifact in plane.artifacts.values():
+                        if not artifact.uri.endswith('/mosaic-blanked.fits'):
+                            for part in artifact.parts.values():
+                                for chunk in part.chunks:
+                                    chunk.position = original_chunk.position
+                                    count += 1
 
-    http_get_mock.side_effect = _http_get_mock
-
-    if 'P124' in test_name:
-        retrieve_provenance_mock.side_effect = helpers._get_db_query_mock_P164
-    elif 'P005' in test_name:
-        retrieve_provenance_mock.side_effect = [helpers._get_db_query_mock_P005B(), helpers._get_db_query_mock_P005A()]
-    else:
-        retrieve_provenance_mock.return_value = []
-
-    expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
-    actual_fqn = expected_fqn.replace('expected', 'actual')
-    if os.path.exists(actual_fqn):
-        os.unlink(actual_fqn)
-
-    observations = {}
-    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
-    expander.expand(test_name)
-    for hierarchy in expander.hierarchies.values():
-        kwargs = {
-            'hierarchy': hierarchy,
-            'config': test_config,
-        }
-        observation = observations.get(hierarchy.obs_id)
-        observation = fits2caom2_augmentation.visit(observation, **kwargs)
-        observations[hierarchy.obs_id] = observation
-
-    if len(observations) == 0:
-        assert False, f'Did not create observation for {test_name}'
-    else:
-        for observation in observations.values():
-            if os.path.exists(expected_fqn):
-                expected = mc.read_obs_from_file(expected_fqn)
-                compare_result = get_differences(expected, observation)
-                if compare_result is not None:
-                    mc.write_obs_to_file(observation, actual_fqn)
-                    compare_text = '\n'.join([r for r in compare_result])
-                    msg = f'Differences found in observation {expected.observation_id}\n' f'{compare_text}'
-                    raise AssertionError(msg)
-            else:
-                mc.write_obs_to_file(observation, actual_fqn)
-                assert False, f'nothing to compare to for {test_name}, missing {expected_fqn}'
-    # assert False  # cause I want to see logging messages
+    logging.info(f'Completed footprint augmentation. Changed {count} artifacts.')
+    return observation

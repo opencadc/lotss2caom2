@@ -70,8 +70,8 @@ import glob
 import shutil
 from os.path import basename
 from caom2pipe.caom_composable import get_all_artifact_keys
-from caom2pipe.manage_composable import read_obs_from_file
-from lotss2caom2.preview_augmentation import visit
+from caom2pipe.manage_composable import read_obs_from_file, write_obs_to_file
+from lotss2caom2 import preview_augmentation
 from lotss2caom2 import lotss_execute
 
 from mock import Mock, patch
@@ -83,12 +83,12 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize('test_name', obs_id_list)
 
 
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
 @patch('lotss2caom2.preview_augmentation.http_get')
 @patch('lotss2caom2.lotss_execute.http_get')
 @patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, test_config, tmp_path, test_name):
+def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, provenance_mock, test_config, tmp_path, test_name):
     import logging
-    # logging.getLogger().setLevel(logging.DEBUG)
     test_config.change_working_directory(tmp_path)
     clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
 
@@ -102,7 +102,8 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
     clients_mock.https_session.get.side_effect = _endpoint_mock
 
     def _http_get_tar_mock(url, fqn, ignore_timeout):
-        logging.error(url)
+        import logging
+        logging.error(fqn)
         if url.endswith('preview=true'):
             shutil.copy(f'{test_name}/preview.jpg', fqn)
         else:
@@ -113,16 +114,34 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, tes
 
     observation = read_obs_from_file(f'{test_name}/{basename(test_name)}_dr2.expected.xml')
     artifact_keys = get_all_artifact_keys(observation)
-    assert len(artifact_keys) == 8, f'pre-condition artifact count {len(artifact_keys)}'
+    if observation.observation_id == 'P124+62_dr2':
+        assert len(artifact_keys) == 250, f'pre-condition artifact count {len(artifact_keys)}'
+        provenance_mock.side_effect = helpers._get_db_query_mock_P164
+    else:
+        if observation.observation_id == 'P005+21_dr2':
+            assert len(artifact_keys) == 493, f'pre-condition artifact count {len(artifact_keys)}'
+        else:
+            assert len(artifact_keys) == 7, f'pre-condition artifact count {len(artifact_keys)}'
+        provenance_mock.return_value = []
     expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
     expander.expand(test_name)
     test_config.working_directory = test_name
     for hierarchy in expander.hierarchies.values():
+        hierarchy._working_directory = tmp_path
+        hierarchy._preview_uri = f'https://vo.astron.nl/getproduct/LoTSS-DR2/{basename(test_name)}?preview=true'
         kwargs = {
-            'strategy': hierarchy,
+            'hierarchy': hierarchy,
             'config': test_config,
         }
-        observation = visit(observation, **kwargs)
+        observation = preview_augmentation.visit(observation, **kwargs)
 
     artifact_keys = get_all_artifact_keys(observation)
-    assert len(artifact_keys) == 12, f'wrong number of artifacts {len(artifact_keys)}'
+    if observation.observation_id == 'P124+62_dr2':
+        assert len(artifact_keys) == 252, f'wrong number of artifacts {len(artifact_keys)}'
+    else:
+        if observation.observation_id == 'P005+21_dr2':
+            assert len(artifact_keys) == 495, f'pre-condition artifact count {len(artifact_keys)}'
+        else:
+            assert len(artifact_keys) == 9, f'wrong number of artifacts {len(artifact_keys)}'
+
+    write_obs_to_file(observation, f'{observation.observation_id}.xml')

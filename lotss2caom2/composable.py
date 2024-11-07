@@ -84,14 +84,25 @@ What I think the order of operations is (pagination is probably not involved):
 2. For each Mosaic ID, get all the metadata from lotss_dr2.mosaics
     - query the lotss_dr2.mosaics table
     - then query the related_products page - this is where the links for the file headers are found
+        - curl --output obs.xml
+            https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/~%3FLoTSS-DR2/<mosaic id>
     - get the file headers for each mosaic and process each header
-        - 1 Plane / Mosaic
-        - n Artifacts / Plane - one for each link on the related_products page - or just 1 for each of the
-        files in the header package?
+        - 2 Planes / Mosaic
+        -   one mosaic plane with 5 Artifacts
+        -   one mosaic low plane with 2 Artifacts
+3. Provenance
+        - 1 Plane / entry in the `lofar_obsids` field (e.g. P005+21 has two)
 
 The supported task type will be INGEST (no data will be transferred, so no SCRAPE/STORE/MODIFY).
 
 A re-ingest will always hit ASTRON, as there's no data at CADC to scrape.
+
+For the raw Plane:
+  1. From the vo table query, there will be a URL that points to the lofar_obsids value (s?). Follow that
+     url to find the link to the Correlated Data Product listing. That is the list of Provenance
+     inputs.
+
+     Do this with awe.
 """
 
 import logging
@@ -115,6 +126,28 @@ def run():
     """Wraps _run in exception handling, with sys.exit calls."""
     try:
         result = _run()
+        sys.exit(result)
+    except Exception as e:
+        logging.error(e)
+        tb = traceback.format_exc()
+        logging.debug(tb)
+        sys.exit(-1)
+
+
+def _run_maybe_faster():
+    """
+    Uses a todo file to identify the work to be done.
+
+    :return 0 if successful, -1 if there's any sort of failure. Return status
+        is used by airflow for task instance management and reporting.
+    """
+    return lotss_execute.execute_maybe_faster()
+
+
+def run_maybe_faster():
+    """Wraps _run in exception handling, with sys.exit calls."""
+    try:
+        result = _run_maybe_faster()
         sys.exit(result)
     except Exception as e:
         logging.error(e)

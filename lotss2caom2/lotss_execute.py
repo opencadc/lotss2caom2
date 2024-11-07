@@ -69,6 +69,8 @@
 import logging
 import tarfile
 import traceback
+
+from bs4 import BeautifulSoup
 from datetime import datetime, timezone
 from os import listdir, unlink
 from os.path import basename, dirname, exists
@@ -77,17 +79,23 @@ from urllib.parse import urlparse
 from caom2 import ProductType
 from caom2pipe.astro_composable import get_vo_table_session, make_headers_from_file
 from caom2pipe.data_source_composable import TodoFileDataSource
-from caom2pipe.execute_composable import OrganizeWithContext
-from caom2pipe.manage_composable import Config, http_get, Observable2, StorageName
+from caom2pipe.execute_composable import OrganizeWithContext, OrganizeWithHierarchy
+from caom2pipe.manage_composable import Config, exec_cmd, http_get, Observable2, query_endpoint_session
 from caom2pipe.run_composable import set_logging, TodoRunner
 from caom2pipe.strategy_composable import HierarchyStrategy, HierarchyStrategyContext
 from lotss2caom2.clients import ASTRONClientCollection
 from lotss2caom2.data_source import ASTRONPyVODataSource
-from lotss2caom2 import fits2caom2_augmentation, preview_augmentation
+from lotss2caom2 import fits2caom2_augmentation, fits2caom2_augmentation_faster
+from lotss2caom2 import position_bounds_augmentation, position_bounds_augmentation_faster
+from lotss2caom2 import preview_augmentation, preview_augmentation_faster
 
+# from awlofar.config.startup import *
+# from common.database.Context import context
 
 META_VISITORS = [fits2caom2_augmentation, preview_augmentation]
-DATA_VISITORS = []
+META_VISITORS_FASTER = [fits2caom2_augmentation_faster, preview_augmentation_faster]
+DATA_VISITORS = [position_bounds_augmentation]
+DATA_VISITORS_FASTER = [position_bounds_augmentation_faster]
 
 
 class LOTSSHierarchyStrategy(HierarchyStrategy):
@@ -117,7 +125,6 @@ class LOTSSHierarchyStrategy(HierarchyStrategy):
         result = ProductType.SCIENCE
         if 'rms' in value:
             result = ProductType.NOISE
-        # elif 'blanked' in value or 'pybdsmmask' in value or 'resid' in value:
         elif 'pybdsmmask' in value or 'resid' in value:
             result = ProductType.AUXILIARY
         elif 'weights' in value:
@@ -152,6 +159,38 @@ class LOTSSHierarchyStrategy(HierarchyStrategy):
         self._obs_id = f'{self._mosaic_id}_dr2'
 
 
+class LOTSSRawHierarchyStrategy(HierarchyStrategy):
+    """
+    The unit of work for a StorageName is the Observation ID. The file names are all found in the
+    MetadataReader specialization based on that Observation ID.
+
+    The destination URIs are set in the MetadataReader, and the file_uri is set to make preview generation work.
+
+    Naming rules:
+    - support mixed-case file name storage, and mixed-case obs id values
+    - support uncompressed files in storage
+
+    observationID example: P124+62
+    """
+
+    LOTSS_NAME_PATTERN = '*'
+
+    def __init__(self, mosaic_id, product_id, file_name):
+        super().__init__(entry=file_name, source_names=[file_name], metadata=None, file_info=None)
+        self._obs_id = f'{mosaic_id}_dr2'
+        self._product_id = product_id
+        self._logger.debug(self)
+
+    def get_artifact_product_type(self, value):
+        return ProductType.SCIENCE
+
+    def set_obs_id(self, **kwargs):
+        pass
+
+    def set_product_id(self, **kwargs):
+        pass
+
+
 class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
     """This class takes one execution unit, and does the work, usually external to CADC, to make the HierarchyStratgy
     instances for it."""
@@ -169,6 +208,9 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._preview_uri = None
         # the URL that links to the tar of the FITS headers from the related_products URI
         self._headers_uri = None
+        # the progenitor links to the raw data
+        self._provenance_uris = []
+        self._raw_table = {}
         self._http_get_timeout = config.http_get_timeout
 
     @property
@@ -191,7 +233,7 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
             self._mosaic_id = mosaic_id
             self._mosaic_uri = results[0]['accref']
             self._mosaic_metadata = results[0]
-            strategy = LOTSSHierarchyStrategy(f'{self._mosaic_uri}/mosaic.fits', self._mosaic_id)
+            strategy = LOTSSHierarchyStrategy(f'{self._mosaic_uri}/mosaic-blanked.fits', self._mosaic_id)
             strategy.metadata = [results[0]]
             strategy._mosaic_metadata = self._mosaic_metadata
             self._hierarchies[strategy.file_uri] = strategy
@@ -220,29 +262,17 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                             strategy = LOTSSHierarchyStrategy(access_url, self._mosaic_id)
                             strategy._mosaic_metadata = self._mosaic_metadata
                             self._hierarchies[strategy.file_uri] = strategy
-                            # storage_name._destination_uris.append(access_url)
                             self._logger.debug(f'Found FITS URL {access_url}')
-
-                # Accomodate the difference between the 6 files in the VOTable listing, and the 7 fits headers in the
-                # tar file.
-                # "mosaic-blanked.fits.0.hdr" is the extra.
-                # if len(self._hierarchies) == 6:
-                #     append_storage_name = None
-                #     for key in self._hierarchies:
-                #         if '/mosaic-weights' in key:
-                #             temp = key.replace('-weights', '-blanked')
-                #             self._hierarchies[storage_name.file_uri] = storage_name
-                    # if append_storage_name:
-                    #     append_storage_name = LOTSSHierarchyStrategy(temp, self._mosaic_id)
-                    #     append_storage_name._mosaic_metadata = self._mosaic_metadata
-                    #     self._logger.debug(f'Append {temp} to storage names.')
+                    elif 'ObservationId=' in access_url:
+                        self._provenance_uris.append(access_url)
+                        self._logger.debug(f'Found Provenance at {access_url}')
             else:
                 self._logger.warning(f'Encountered {error_message} when querying {self._related_products_uri}')
         self._logger.debug(f'End _get_related_products_metadata')
 
     def _get_headers_metadata(self):
         """Retrieve the file that has all the header metadata in it, and get all the metadata from that file,
-        for each of files."""
+        for each of mosaic'd files."""
         self._logger.debug(f'Begin _get_headers_metadata for {self._headers_uri}')
         if self._headers_uri:
             local_fqn = f'/tmp/{basename(self._headers_uri)}'
@@ -259,7 +289,6 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                     elif entry.endswith('.0.hdr'):
                         found_uri = f'{dirname(self._headers_uri)}/{basename(entry).replace(".0.hdr", "")}'
                     if found_uri:
-                        # self._headers[found_uri] = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy = LOTSSHierarchyStrategy(found_uri, self._mosaic_id)
                         temp_strategy.metadata = make_headers_from_file(f'/tmp/fits_headers/{entry}')
                         temp_strategy._mosaic_metadata = self._mosaic_metadata
@@ -269,6 +298,89 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
                         self._logger.warning(f'Unexpected file header {entry}')
         self._logger.debug('End _get_headers_metadata')
 
+    def _get_provenance_metadata(self):
+        """Retrieve available metadata for raw inputs."""
+        if self._provenance_uris:
+            for provenance_uri in self._provenance_uris:
+                self._logger.debug(f'Begin _get_provenance_metadata from {provenance_uri}')
+                # self._raw_table = self._retrieve_provenance_metadata_2(provenance_uri)
+                self._raw_table = self._retrieve_provenance_metadata(provenance_uri)
+                sas_id = provenance_uri.split('=')[-1]
+                for index, row in enumerate(self._raw_table):
+                    if len(row) > 0:
+                        if row.file_name:
+                            strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, row.file_name)
+                        else:
+                            strategy = LOTSSRawHierarchyStrategy(self._mosaic_id, sas_id, str(index))
+                        strategy.metadata = row
+                        self._hierarchies[strategy.file_uri] = strategy
+            self._logger.debug('End _get_provenance_metadata')
+
+    def _retrieve_provenance_metadata(self, provenance_uri):
+        self._logger.debug(f'Begin _retrieve_provenance_metadata')
+        response = None
+        result = None
+        try:
+            response = query_endpoint_session(provenance_uri, self._session)
+            response.raise_for_status()
+            if response is None:
+                self._logger.warning(f'No response from {provenance_uri}.')
+            else:
+                # so ugly and fragile
+                table = self._parse_html_string_for_table(response.content, 'result_table_AveragingPipeline')
+                if table:
+                    data_product_fragment = table[-1].get('Number Of Correlated DataProducts')
+                    if data_product_fragment:
+                        correlated_data_product = f'https://lta.lofar.eu/{data_product_fragment}'
+                        cmd = f'curl --output /tmp/x.htm --header \"cookie: lta#lofar=table_columns_store%3DeJxtU8lyEzEQNQGSkD0hCwkBFFazBfiEKQ-pyiUxmCK65KCZ6YxFyRq3pHHhA1V8OlLLMZPlJvVrdb9-_fR35g-22ny91WolIzCilLrsyiEoqQHvnONMm895rGuqX5A7vEu3jgHhKoP3-AJhciQVlGDxPl_yge-gQFhgqXCAs3w55ExKshMxAJzja83YTzBWVhrn-awP95IeOy7wAb2LF9arapMDLvCNyCUHa30ctJMXEgwu8p1bgdhuie_ejk7KLvM9jx8ZwBp0PmbH2kFphPOcWM_BEFf4lk_4IQdwE1uNPJ2PQTmODdf4diioRMmS2lWsUxkDih5ZXOebzQcp2NzIYcBwg897KIWB_O3XgA_5gb-e1IPMcz29mJaBIkgr_EBFnTuLm7SGnhPGsUASt2KdOvLEbbp-1UVEd4gx7TBMQVt6RNJ3hbHgcJdkjuI0O-Ee7S1RiqLDy_6PyRTfaqGkG-M-kFr_yTYrPDnHp1cd9eymZRhfDHILU4KLgh7w1ZAky75jic1Bk1-eU14KuXdRnPQFGbnjF2yEYtON4ss4cl9oDYqdycL18RXtYRKzrBv8UGeZ0AW-Jqi56nA2I6HwzXWt21e1fsv3A15niTFizLqV9GbTZdOs72j-y17v6b0vGN3xgeQ4zWxoF0MfKWP6KQ-JXAr-1103wifKPPKfUQfVPvMVKl35bw3szEg_A36B-vAf8Wsw9g..\" \"{correlated_data_product}\"'
+                        self._logger.info(f'Search {correlated_data_product} for raw metadata.')
+                        exec_cmd(cmd)
+                        if exists('/tmp/x.htm'):
+                            result = self._map_db_query_3('/tmp/x.htm')
+                        else:
+                            self._logger.warning(f'No response from {correlated_data_product}')
+                    else:
+                        self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
+                else:
+                    self._logger.warning(f'Cannot find result_table_averagingPipeline in {self._provenance_uri}')
+        finally:
+            if response is not None:
+                response.close()
+        self._logger.debug(f'End _retrieve_provenance_metadata')
+        return result
+
+    def _retrieve_provenance_metadata_2(self, provenance_uri):
+        self._logger.debug(f'Begin _retrieve_provenance_metadata')
+        response = None
+        result = None
+        try:
+            response = query_endpoint_session(provenance_uri, self._session)
+            response.raise_for_status()
+            if response is None:
+                self._logger.warning(f'No response from {provenance_uri}.')
+            else:
+                # so ugly and fragile
+                table = self._parse_html_string_for_table(response.content, 'result_table_AveragingPipeline')
+                if table:
+                    data_product_fragment = table[-1].get('Number Of Correlated DataProducts')
+                    if data_product_fragment:
+                        pipeline_object_id = data_product_fragment.split('pipeline_object_id=')[1]
+                        self._logger.info(f'Search {pipeline_object_id} for raw metadata.')
+                        query = CorrelatedDataProduct.pipeline.object_id == f'{pipeline_object_id}'
+                        if len(query) > 0:
+                            result = self._map_db_query_2(query)
+                        else:
+                            self._logger.warning(f'No records for {pipeline_object_id} of {data_product_fragment}')
+                    else:
+                        self._logger.warning(f'Cannot find "Source DataProduct" on {provenance_uri}.')
+                else:
+                    self._logger.warning(f'Cannot find result_table_averagingPipeline in {self._provenance_uri}')
+        finally:
+            if response is not None:
+                response.close()
+        self._logger.debug(f'End _retrieve_provenance_metadata')
+        return result
+
     def _expand(self, entry):
         self._logger.debug(f'Begin expand for {entry}')
         mosaic_id = basename(urlparse(entry).path)
@@ -277,8 +389,135 @@ class LOTSSHierarchyStrategyContext(HierarchyStrategyContext):
         self._get_headers_metadata()
         for hierarchy in self._hierarchies.values():
             hierarchy._preview_uri = self._preview_uri
+        self._get_provenance_metadata()
         self._logger.debug(f'End expand with {len(self._hierarchies)} hierarchies.')
         return self._hierarchies
+
+    def _parse_html_string_for_table(self, html_string, table_id):
+        result = []
+        soup = BeautifulSoup(html_string, 'html.parser')
+        table = soup.find(id=table_id)
+        if table:
+            headers = [header.text.strip() for header in table.find_all('th')]
+            # return [{headers[ii]: cell.text for ii, cell in enumerate(row.find_all('td'))} for row in table.find_all('tr')]
+            for row in table.find_all('tr'):
+                temp = {}
+                for ii, cell in enumerate(row.find_all('td')):
+                    if cell.css.select('a[href]'):
+                        temp[headers[ii]] = cell.css.select('a[href]')[0].get('href')
+                    else:
+                        temp[headers[ii]] = cell.text
+                result.append(temp)
+        return result
+
+    def _map_db_query_3(self, file_name):
+        results = []
+        with open(file_name) as f:
+            html_content = f.read()
+            results = self._map_db_query(html_content)
+        # unlink(file_name)
+        return results
+
+    def _map_db_query(self, html_string):
+        results = []
+        from collections import namedtuple
+        CorrelatedDataProduct = namedtuple(
+            'CorrelatedDataProduct',
+            'data_product_id central_frequency channel_width start_time ra dec file_name creator integration_interval duration release_date project_name content_type content_checksum'
+        )
+        MinimalArtifact = namedtuple(
+            'MinimalArtifact',
+            'content_checksum',
+        )
+        soup = BeautifulSoup(html_string, features='lxml')
+        table_body = soup.find_all('tbody')
+        # print(len(table_body))
+        table_body_length = len(table_body)
+        # print(table_body[table_body_length - 1])
+        file_infos = {}
+        for bodies in table_body[(table_body_length - 1):]:
+            file_rows = bodies.find_all('tr')
+            file_name = None
+            content_checksum = None
+
+            for file_row in file_rows:
+                cell_content = file_row.find_all('td')
+                if cell_content[0].text == 'Filename':
+                    file_name = cell_content[1].text
+                elif cell_content[0].text == 'Hash Md5':
+                    content_checksum = f'md5:{cell_content[1].text}'
+
+            if file_name:
+                file_infos[file_name] = MinimalArtifact(content_checksum)
+
+        rows = table_body[0].findAll('tr')
+        for row in rows:
+            cells = row.findAll('td')
+            data_product_id = cells[13].text
+            central_frequency = cells[7].text
+            channel_width = cells[8].text
+            start_time = cells[11].text
+            ra = cells[5].text
+            dec = cells[6].text
+            file_name = cells[19].text
+            creator = 'AWTIER0'
+            integration_interval = cells[10].text
+            duration = cells[12].text
+            release_date = cells[3].text
+            project_name = cells[2].text
+            content_type = 'AIPS++/CASA'
+            content_checksum = None
+
+            file_info = file_infos.get(file_name)
+            if file_info:
+                content_checksum = file_info.content_checksum
+
+            row_content = CorrelatedDataProduct(
+                data_product_id,
+                central_frequency,
+                channel_width,
+                start_time,
+                ra,
+                dec,
+                file_name,
+                creator,
+                integration_interval,
+                duration,
+                release_date,
+                project_name,
+                content_type,
+                content_checksum,
+            )
+            results.append(row_content)
+        return results
+
+    def _map_db_query_2(self, query_result):
+        # https://www.astron.nl/lofarwiki/doku.php?id=public:lta_tricks#queries
+        # https://www.astro-wise.org/
+        results = []
+        from collections import namedtuple
+        CDP = namedtuple(
+            'CDP',
+            'data_product_id central_frequency channel_width start_time end_time ra dec file_name integration_interval duration file_format release_date project_name'
+        )
+        for row in query_result:
+            row_content = CDP(
+                row.get('CorrelatedDataProduct.dataProductIdentifier'),
+                row.get('CorrelatedDataProduct.centralFrequency'),
+                row.get('CorrelatedDataProduct.channelWidth'),
+                row.get('CorrelatedDataProduct.startTime'),
+                row.get('CorrelatedDataProduct.endTime'),
+                row.get('CorrelatedDataProduct.subArrayPointing.pointing.rightAscension'),
+                row.get('CorrelatedDataProduct.subArrayPointing.pointing.declination'),
+                row.get('CorrelatedDataProduct.filename'),
+                row.get('CorrelatedDataProduct.integrationInterval'),
+                row.get('CorrelatedDataProduct.duration'),
+                row.get('CorrelatedDataProduct.fileFormat'),
+                row.get('CorrelatedDataProduct.releaseDate'),
+                row.get('CorrelatedDataProduct.projectInformation.projectCode'),
+            )
+            results.append(row_content)
+        return results
 
     def set(self, entry):
         # this is here so that the CaomExecutor call doesn't fall over
@@ -345,9 +584,9 @@ def execute():
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
+    organizer.choose(META_VISITORS, DATA_VISITORS)
     data_source = TodoFileDataSource(config)
     # TODO - this would need to be consistent between data_sources
-    organizer.choose(META_VISITORS, DATA_VISITORS)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,
@@ -358,6 +597,37 @@ def execute():
     result |= runner.run_retry()
     runner.report()
     logging.debug('End execute')
+    return result
+
+
+def execute_maybe_faster():
+    logging.debug('Begin execute_maybe_faster')
+    # TODO - should I move the "get_executors" call into the Config constructor? they have to happen right after
+    # each other anyway
+    config = Config()
+    config.get_executors()
+    HierarchyStrategy.collection = config.collection
+    HierarchyStrategy.preview_scheme = config.preview_scheme
+    HierarchyStrategy.scheme = config.scheme
+    HierarchyStrategy.data_source_extension = config.data_source_extensions
+    set_logging(config)
+    observable = Observable2(config)
+    clients = ASTRONClientCollection(config)
+    strategy_context = LOTSSHierarchyStrategyContext(clients, config)
+    organizer = OrganizeWithHierarchy(config, strategy_context, clients, observable)
+    organizer.choose(META_VISITORS_FASTER, DATA_VISITORS_FASTER)
+    data_source = TodoFileDataSource(config)
+    # TODO - this would need to be consistent between data_sources
+    runner = StrategyTodoRunner(
+        config=config,
+        organizer=organizer,
+        data_sources=[data_source],
+        observable=observable,
+    )
+    result = runner.run()
+    result |= runner.run_retry()
+    runner.report()
+    logging.debug('End execute_maybe_faster')
     return result
 
 
@@ -374,8 +644,8 @@ def remote_execute():
     clients = ASTRONClientCollection(config)
     strategy_context = LOTSSHierarchyStrategyContext(clients, config)
     organizer = OrganizeWithContext(config, strategy_context, clients, observable)
-    data_source = ASTRONPyVODataSource(config, clients)
     organizer.choose(META_VISITORS, DATA_VISITORS)
+    data_source = ASTRONPyVODataSource(config, clients)
     runner = StrategyTodoRunner(
         config=config,
         organizer=organizer,

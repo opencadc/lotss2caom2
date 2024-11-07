@@ -67,7 +67,7 @@
 #
 
 from os.path import dirname, join, realpath
-from caom2pipe.manage_composable import Config, StorageName
+from caom2pipe.manage_composable import Config, StorageName, TaskType
 from caom2pipe.strategy_composable import HierarchyStrategy
 import pytest
 
@@ -83,6 +83,7 @@ def test_config():
     config.preview_scheme = PREVIEW_SCHEME
     config.scheme = SCHEME
     config.logging_level = 'INFO'
+    config.task_types = [TaskType.INGEST]
     StorageName.collection = config.collection
     HierarchyStrategy.collection = config.collection
     StorageName.preview_scheme = config.preview_scheme

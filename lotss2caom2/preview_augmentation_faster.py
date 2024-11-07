@@ -112,18 +112,15 @@ class LOTSSPreview:
         self._clients = kwargs.get('clients')
         if self._clients is None or self._clients.data_client is None:
             self._logger.warning('Visitor needs a clients.data_client parameter to store previews.')
-        self._strategy = kwargs.get('hierarchy')
-        if self._strategy is None:
-            raise CadcException('Visitor needs a hierarchy parameter.')
+        self._hierarchies = kwargs.get('hierarchies')
+        if self._hierarchies is None:
+            raise CadcException('Visitor needs a hierarchies parameter.')
         self._delete_list = []
         # keys are uris, values are lists, where the 0th entry is a file name, and the 1st entry is the artifact type
         self._previews = {}
         self._report = None
         self._hdu_list = None
         self._ext = None
-        self._input_fqn = search_for_file(self._strategy, 'preview.jpg', self._strategy.working_directory)
-        self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.prev)
-        self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), self._strategy.thumb)
 
     @property
     def report(self):
@@ -132,31 +129,35 @@ class LOTSSPreview:
     def visit(self, observation):
         count = 0
         # preview generation with this algorithm only occurs for the mosaic plane
-        if hasattr(self._strategy, 'mosaic_id'):
-            product_id = f'{self._strategy.mosaic_id}_mosaic'
-            if product_id in observation.planes.keys():
-                plane = observation.planes[product_id]
-                if not self._strategy.prev_uri in plane.artifacts.keys():
-                    self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
-                    count += self._do_prev(plane, observation.observation_id)
-                    self._augment_artifacts(plane)
-                    self._delete_list_of_files()
-        self._logger.info(f'Changed {count} artifacts during preview augmentation for {observation.observation_id}.')
+        for hierarchy in self._hierarchies.values():
+            self._input_fqn = search_for_file(hierarchy, 'preview.jpg', hierarchy.working_directory)
+            self._preview_fqn = os.path.join(os.path.dirname(self._input_fqn), hierarchy.prev)
+            self._thumb_fqn = os.path.join(os.path.dirname(self._input_fqn), hierarchy.thumb)
+            if hasattr(hierarchy, 'mosaic_id'):
+                product_id = f'{hierarchy.mosaic_id}_mosaic'
+                if product_id in observation.planes.keys():
+                    plane = observation.planes[product_id]
+                    if not hierarchy.prev_uri in plane.artifacts.keys():
+                        self._logger.debug(f'Preview generation for observation {observation.observation_id}, plane {plane.product_id}.')
+                        count += self._do_prev(hierarchy, plane, observation.observation_id)
+                        self._augment_artifacts(plane)
+                        self._delete_list_of_files()
+            self._logger.info(f'Changed {count} artifacts during preview augmentation for {observation.observation_id}.')
         self._report = {'artifacts': count}
         return observation
 
-    def generate_plots(self, obs_id):
+    def generate_plots(self, hierarchy, obs_id):
         count = 0
-        if self._strategy._preview_uri:
-            self._logger.debug(f'Begin generate_plots for {obs_id} from {self._strategy._preview_uri}')
-            http_get(self._strategy._preview_uri, self._input_fqn, self._config.http_get_timeout)
+        if hierarchy._preview_uri:
+            self._logger.debug(f'Begin generate_plots for {obs_id} from {hierarchy._preview_uri}')
+            http_get(hierarchy._preview_uri, self._input_fqn, self._config.http_get_timeout)
             if os.path.exists(self._input_fqn):
                 self._logger.info(f'Retrieved {self._input_fqn}')
                 shutil.copy(self._input_fqn, self._preview_fqn)
-                self.add_preview(self._strategy.prev_uri, self._strategy.prev, ProductType.PREVIEW)
+                self.add_preview(hierarchy.prev_uri, hierarchy.prev, ProductType.PREVIEW)
                 count += self._gen_thumbnail()
                 if count == 1:
-                    self.add_preview(self._strategy.thumb_uri, self._strategy.thumb, ProductType.THUMBNAIL)
+                    self.add_preview(hierarchy.thumb_uri, hierarchy.thumb, ProductType.THUMBNAIL)
         self._logger.debug(f'End generate_plots')
         return count
 
@@ -193,20 +194,20 @@ class LOTSSPreview:
                     self._logger.warning(f'Deleting {entry}')
                     os.unlink(entry)
 
-    def _do_prev(self, plane, obs_id):
-        self.generate_plots(obs_id)
+    def _do_prev(self, hierarchy, plane, obs_id):
+        self.generate_plots(hierarchy, obs_id)
         if self._hdu_list is not None:
             # astropy says https://docs.astropy.org/en/stable/io/fits/index.html#working-with-large-files
             self._hdu_list.close()
             del self._hdu_list[self._ext].data
             del self._hdu_list
-        self._store_smalls()
+        self._store_smalls(hierarchy)
         return len(self._previews)
 
-    def _store_smalls(self):
+    def _store_smalls(self, hierarchy):
         if self._clients is not None and self._clients.data_client is not None:
             for uri, entry in self._previews.items():
-                self._clients.data_client.put(self._strategy.working_directory, uri)
+                self._clients.data_client.put(hierarchy.working_directory, uri)
 
     def _gen_thumbnail(self):
         self._logger.debug(f'Generating thumbnail {self._thumb_fqn}.')

@@ -68,6 +68,7 @@
 
 import numpy as np
 from astropy.table import Table
+from caom2 import Algorithm, SimpleObservation
 
 
 def _search_id_list_mock(ignore_query):
@@ -80,7 +81,9 @@ def _search_id_list_mock(ignore_query):
 def _search_mosaic_id_mock(query_string):
     # the query return value is pyvo.dal.tap.TAPResults, and the individual masked arrays are numpy.ma.core.MaskedArray
     # but for the purposes of testing a list of dicts has the same behaviour
-    if 'P000' in query_string:
+    # service = vo.dal.TAPService('https://vo.astron.nl/tap')
+    # results = service.search(f"SELECT * from lotss_dr2.mosaics WHERE mosaic_id = '{mosaic_id}'")
+    if 'P000+23' in query_string:
         result = [
             {
                 'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P000%2B23',
@@ -127,7 +130,7 @@ def _search_mosaic_id_mock(query_string):
                 'adler32': '8eefe6e9',
             }
         ]
-    else:
+    elif 'P124+62' in query_string:
         result = [
             {
                 'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P124%2B62',
@@ -174,6 +177,95 @@ def _search_mosaic_id_mock(query_string):
                 'adler32': '865c7c66',
             }
         ]
+    elif 'P005+21' in query_string:
+        result = [
+            {
+                'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P005%2B21',
+                'owner': '',
+                'embargo': '',
+                'mime': 'image/fits',
+                'accsize': 740666880,
+                'centeralpha': 5.03954,
+                'centerdelta': 20.9288,
+                'imageTitle': 'P005+21_mosaic-blanked.fits',
+                'instid': 'LOFAR.HBA',
+                'dateobs': 58668.1213425924,
+                'nAxes': 2,
+                'pixelsize': [9622, 9622],
+                'pixelScale': [0.0004166669968981296, 0.0004166669968981296],
+                'refframe': 'ICRS',
+                'wcs_equinox': 2000.0,
+                'wcs_projection': 'SIN',
+                'wcs_refpixel': [4811.0, 4811.0],
+                'wcs_refvalues': [5.03954, 20.9288],
+                'wcs_cdmatrix': [-0.0004166669968981296, 0.0, 0.0, 0.0004166669968981296],
+                'bandpassid': '120-168MHz',
+                'bandpassunit': 'm',
+                'bandpassrefval': 2.08189,
+                'bandpasshi': 2.49827,
+                'bandpasslo': 1.78448,
+                'pixflags': 'Z',
+                'coverage': [
+                    7.158540286752091,
+                    18.91097641889946,
+                    7.2160261134913455,
+                    22.92018514662428,
+                    2.8626012677244765,
+                    22.920179486636123,
+                    2.9200990414869863,
+                    18.91097090833646,
+                ],
+                'mosaic_id': 'P005+21',
+                'related_products': 'https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/%7E%3FLoTSS-DR2/P005%2B21',
+                'lofar_obsids': [727372, 734329],
+                'data_pid': '21.12136/85b13e46-acb7-4b58-af65-5f5e12aef98d',
+                'adler32': 'dddca9d7',
+            }
+        ]
+    elif 'P002+18' in query_string:
+        result = [{
+            'accref': 'https://vo.astron.nl/getproduct/LoTSS-DR2/P002%2B18',
+            'owner': '',
+            'embargo': '',
+            'mime': 'image/fits',
+            'accsize': 833955840,
+            'centeralpha': 2.1779,
+            'centerdelta': 18.3938,
+            'imageTitle': 'P002+18_mosaic-blanked.fits',
+            'instid': 'LOFAR.HBA',
+            'dateobs': 58830.5910648149,
+            'nAxes': 2,
+            'pixelsize': [10210, 10210],
+            'pixelScale': [0.0004166669968981296, 0.0004166669968981296],
+            'refframe': 'ICRS',
+            'wcs_equinox': 2000.0,
+            'wcs_projection': 'SIN',
+            'wcs_refpixel': [5105.0, 5105.0],
+            'wcs_refvalues': [2.1779, 18.3938],
+            'wcs_cdmatrix': [-0.0004166669968981296, 0.0, 0.0, 0.0004166669968981296],
+            'bandpassid': '120-168MHz',
+            'bandpassunit': 'm',
+            'bandpassrefval': 2.08189,
+            'bandpasshi': 2.49827,
+            'bandpasslo': 1.78448,
+            'pixflags': 'Z',
+            'coverage': [
+                4.393656223264431,
+                16.25365835830698,
+                4.449063431589719,
+                20.508061174463997,
+                359.90629143539604,
+                20.50805595644316,
+                359.96170949604596,
+                16.253653267521848,
+            ],
+            'mosaic_id': 'P002+18',
+            'related_products': 'https://vo.astron.nl/lotss_dr2/q/dlmosaic/dlmeta?ID=ivo%3A//astron.nl/%7E%3FLoTSS-DR2/P002%2B18',
+            'lofar_obsids': [762095],
+            'data_pid': '21.12136/4d6cb08b-6897-4cc9-b6b1-456690e0a141',
+            'adler32': 'b56b94c3',
+        }]
+
     return result
 
 
@@ -210,3 +302,255 @@ def _get_vo_mock(_):
     result.close = lambda: None
     result.text = content
     return result
+
+# https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&source_pipeline=99977D292AE15486E053164A17ACDB1B&object_type=AveragingPipeline
+
+
+def _map_db_query(file_name):
+    results = []
+    from collections import namedtuple
+    CorrelatedDataProduct = namedtuple(
+        'CorrelatedDataProduct',
+        'data_product_id central_frequency channel_width start_time end_time ra dec file_name creator integration_interval duration file_format release_date project_name content_type content_checksum'
+    )
+    MinimalArtifact = namedtuple(
+        'MinimalArtifact',
+        'content_checksum',
+    )
+    with open(file_name) as f:
+        content = f.read()
+
+    from bs4 import BeautifulSoup
+    from astropy.io import ascii
+    soup = BeautifulSoup(content, features='lxml')
+    table_header = soup.find_all('thead')
+    table_body = soup.find_all('tbody')
+    print(len(table_body))
+    table_body_length = len(table_body)
+    print(table_body[table_body_length - 1])
+    file_infos = {}
+    for bodies in table_body[(table_body_length - 1):]:
+        file_rows = bodies.find_all('tr')
+        file_name = None
+        content_checksum = None
+
+        for file_row in file_rows:
+            cell_content = file_row.find_all('td')
+            if cell_content[0].text == 'Filename':
+                file_name = cell_content[1].text
+            elif cell_content[0].text == 'Hash Md5':
+                content_checksum = f'md5:{cell_content[1].text}'
+
+        if file_name:
+            file_infos[file_name] = MinimalArtifact(content_checksum)
+
+    rows = table_body[0].findAll('tr')
+    columns = table_header[0].text.split('\n')
+    for index, column in enumerate(columns):
+        for row in rows:
+
+            cells = row.findAll('td')
+            # print(len(cells))
+            # print(cells[0])
+            data_product_id = cells[6].text
+            central_frequency = cells[10].text
+            channel_width = cells[11].text
+            start_time = cells[14].text
+            end_time = cells[16].text
+            ra = cells[8].text
+            dec = cells[9].text
+            file_name = cells[27].text
+            creator = cells[3].text
+            integration_interval = cells[13].text
+            duration = cells[15].text
+            file_format = cells[26].text
+            release_date = cells[5].text
+            project_name = cells[2].text
+            content_type = cells[26].text
+
+            file_info = file_infos.get(file_name)
+            if file_info:
+                content_checksum = file_info.content_checksum
+
+            row_content = CorrelatedDataProduct(
+                data_product_id,
+                central_frequency,
+                channel_width,
+                start_time,
+                end_time,
+                ra,
+                dec,
+                file_name,
+                creator,
+                integration_interval,
+                duration,
+                file_format,
+                release_date,
+                project_name,
+                content_type,
+                content_checksum,
+            )
+            results.append(row_content)
+    # print(len(rows))
+    # for row in rows:
+    #     cells = row.findAll('td')
+    #     print(len(cells))
+        # print(f'::: {row}')
+    return results
+
+
+def _get_db_query_mock_P164():
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_664568.htm')
+
+
+def _get_db_query_mock_P005A():
+    # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=90C703E9A9705084E053144A17AC6B3C
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_734329.htm')
+
+
+def _get_db_query_mock_P005B():
+    # https://lta.lofar.eu/Lofar?project=ALL&mode=query_result_page&product=CorrelatedDataProduct&pipeline_object_id=8CEF25CF085D6A53E053164A17AC7525
+    return _map_db_query('/usr/src/app/lotss2caom2/lotss2caom2/tests/data/provenance/correlated_727372.htm')
+
+
+def _observation(collection, observation_id):
+    return SimpleObservation(
+        algorithm=Algorithm(name='exposure'),
+        collection=collection,
+        observation_id=observation_id,
+    )
+
+# if __name__ == '__main__':
+   # t =  _get_db_query_mock()
+   # print(t)
+   # print(t[0].file_format)
+
+
+# {
+# 'CorrelatedDataProduct.centralFrequency': 124.21875,
+# 'CorrelatedDataProduct.channelWidth': 12207.03125,
+# 'CorrelatedDataProduct.channelsPerSubband': 16,
+# 'CorrelatedDataProduct.creationDate': datetime.datetime(2018, 8, 22, 19, 9, 38, 22634),
+# 'CorrelatedDataProduct.dataProductIdentifier': 25010891,
+# 'CorrelatedDataProduct.dataProductIdentifierName': 'L664568_SB264_uv.MS',
+# 'CorrelatedDataProduct.dataProductIdentifierSource': 'MoM',
+# 'CorrelatedDataProduct.dataProductType': 'Correlator data',
+# 'CorrelatedDataProduct.duration': 28799.0,
+# 'CorrelatedDataProduct.endTime': datetime.datetime(2018, 8, 20, 13, 47, 34),
+# 'CorrelatedDataProduct.fileFormat': 'AIPS++/CASA',
+# 'CorrelatedDataProduct.filename': 'L664568_SB264_uv.MS_697365ea.tar',
+# 'CorrelatedDataProduct.globalname': '',
+# 'CorrelatedDataProduct.integrationInterval': 1.00139008,
+# 'CorrelatedDataProduct.isDirty': 0,
+# 'CorrelatedDataProduct.isValid': 1,
+# 'CorrelatedDataProduct.maximumFrequency': 124.31640625,
+# 'CorrelatedDataProduct.minimumFrequency': 124.12109375,
+# 'CorrelatedDataProduct.object_id': '740BDD12281C4FBBE053144A17ACAF83',
+# 'CorrelatedDataProduct.observation': None,
+# 'CorrelatedDataProduct.observations': 'LAZY_TYPED_LIST SKIPPED',
+# 'CorrelatedDataProduct.pipeline.creationDate': datetime.datetime(2018, 8, 22, 18, 44, 9, 926816),
+# 'CorrelatedDataProduct.pipeline.demixing': 1,
+# 'CorrelatedDataProduct.pipeline.duration': 17740.0,
+# 'CorrelatedDataProduct.pipeline.endTime': datetime.datetime(2018, 8, 20, 18, 49, 31),
+# 'CorrelatedDataProduct.pipeline.flagAutoCorrelations': 1,
+# 'CorrelatedDataProduct.pipeline.frequencyIntegrationStep': 4,
+# 'CorrelatedDataProduct.pipeline.isValid': 1,
+# 'CorrelatedDataProduct.pipeline.numberOfCorrelatedDataProducts': 243,
+# 'CorrelatedDataProduct.pipeline.object_id': '740B81E0588B278FE053144A17ACFF94',
+# 'CorrelatedDataProduct.pipeline.observationId': '664568',
+#  'CorrelatedDataProduct.pipeline.observationIdSource': 'SAS',
+#  'CorrelatedDataProduct.pipeline.parset.content': [...],
+# 'CorrelatedDataProduct.pipeline.parset.creationDate': datetime.datetime(2018, 8, 22, 18, 44, 9, 827328),
+# 'CorrelatedDataProduct.pipeline.parset.filename': '',
+# 'CorrelatedDataProduct.pipeline.parset.globalname': '',
+# 'CorrelatedDataProduct.pipeline.parset.identifier': '664568',
+# 'CorrelatedDataProduct.pipeline.parset.identifierSource': 'SAS',
+# 'CorrelatedDataProduct.pipeline.parset.numberOfEntries': 0,
+#  'CorrelatedDataProduct.pipeline.parset.object_id': '740B81E05797278FE053144A17ACFF94',
+# 'CorrelatedDataProduct.pipeline.pipelineName': 'P124+62/1.2/TP',
+# 'CorrelatedDataProduct.pipeline.pipelineVersion': 'n/a',
+# 'CorrelatedDataProduct.pipeline.processIdentifier': 890465,
+# 'CorrelatedDataProduct.pipeline.processIdentifierName': 'P124+62/1.2/TP',
+# 'CorrelatedDataProduct.pipeline.processIdentifierSource': 'MoM',
+# 'CorrelatedDataProduct.pipeline.projectInformation.coInvestigator': ['list of people'],
+# 'CorrelatedDataProduct.pipeline.projectInformation.contactAuthor': 'Shimwell,  Timothy',
+# 'CorrelatedDataProduct.pipeline.projectInformation.object_id': '6CF0AB87B8CA29A1E053B316A9C30CAD',
+# 'CorrelatedDataProduct.pipeline.projectInformation.primaryInvestigator': 'Shimwell,  Timothy',
+# 'CorrelatedDataProduct.pipeline.projectInformation.projectCode': 'LT10_010',
+# 'CorrelatedDataProduct.pipeline.projectInformation.projectDescription': 'The LOFAR Two-metre Sky Survey: Opening up a new window on the Universe',
+# 'CorrelatedDataProduct.pipeline.projectInformation.releaseDate': datetime.datetime(2021, 5, 30, 0, 0),
+# 'CorrelatedDataProduct.pipeline.projectInformation.telescope': 'LOFAR',
+# 'CorrelatedDataProduct.pipeline.quality': -1,
+# 'CorrelatedDataProduct.pipeline.relations': 'LAZY_TYPED_LIST SKIPPED',
+# 'CorrelatedDataProduct.pipeline.releaseDate': datetime.datetime(2019, 11, 14, 17, 42, 53),
+# 'CorrelatedDataProduct.pipeline.sourceData': 'LAZY_TYPED_LIST SKIPPED',
+# 'CorrelatedDataProduct.pipeline.startTime': datetime.datetime(2018, 8, 20, 13, 53, 51),
+# 'CorrelatedDataProduct.pipeline.strategyDescription': 'Preprocessing only',
+# 'CorrelatedDataProduct.pipeline.strategyName': 'Preprocessing Pipeline',
+# 'CorrelatedDataProduct.pipeline.timeIntegrationStep': 1,
+# 'CorrelatedDataProduct.processIdentifier': 890465,
+# 'CorrelatedDataProduct.processIdentifierName': 'P124+62/1.2/TP',
+# 'CorrelatedDataProduct.processIdentifierSource': 'MoM',
+# 'CorrelatedDataProduct.projectInformation.coInvestigator': ['list of people'],
+# 'CorrelatedDataProduct.projectInformation.contactAuthor': 'Shimwell,  Timothy',
+# 'CorrelatedDataProduct.projectInformation.object_id': '6CF0AB87B8CA29A1E053B316A9C30CAD',
+# 'CorrelatedDataProduct.projectInformation.primaryInvestigator': 'Shimwell,  Timothy',
+# 'CorrelatedDataProduct.projectInformation.projectCode': 'LT10_010',
+# 'CorrelatedDataProduct.projectInformation.projectDescription': 'The LOFAR Two-metre Sky Survey: Opening up a new window on the Universe',
+# 'CorrelatedDataProduct.projectInformation.releaseDate': datetime.datetime(2021, 5, 30, 0, 0),
+# 'CorrelatedDataProduct.projectInformation.telescope': 'LOFAR',
+# 'CorrelatedDataProduct.releaseDate': datetime.datetime(2019, 11, 14, 17, 42, 53),
+# 'CorrelatedDataProduct.sourceData': 'LAZY_TYPED_LIST SKIPPED',
+# 'CorrelatedDataProduct.startTime': datetime.datetime(2018, 8, 20, 5, 47, 35),
+# 'CorrelatedDataProduct.stationSubband': 0,
+# 'CorrelatedDataProduct.storageWriter': 'CasaStorageManagers',
+# 'CorrelatedDataProduct.storageWriterVersion': '2.2.0',
+# 'CorrelatedDataProduct.storage_ticket.Id': -1,
+# 'CorrelatedDataProduct.storage_ticket.creation_date': datetime.datetime(2018, 8, 22, 18, 53, 26, 347367),
+# 'CorrelatedDataProduct.storage_ticket.dns': 'portal.lofar.eu',
+# 'CorrelatedDataProduct.storage_ticket.error': '',
+# 'CorrelatedDataProduct.storage_ticket.estimated_filesize': -1,
+# 'CorrelatedDataProduct.storage_ticket.filename': 'L664568_SB264_uv.MS.tar',
+# 'CorrelatedDataProduct.storage_ticket.id_source': 'MoM',
+# 'CorrelatedDataProduct.storage_ticket.ip': '195.169.3.100',
+# 'CorrelatedDataProduct.storage_ticket.job_id': 'A_892799_25010891_L664568_SB264_uv.MS',
+# 'CorrelatedDataProduct.storage_ticket.mom_id': 25010891,
+# 'CorrelatedDataProduct.storage_ticket.object_id': '740BA30BED0635CBE053144A17AC3D00',
+# 'CorrelatedDataProduct.storage_ticket.obs_id': 664568,
+# 'CorrelatedDataProduct.storage_ticket.state': 40,
+# 'CorrelatedDataProduct.subArrayPointing.beamNumber': 2,
+# 'CorrelatedDataProduct.subArrayPointing.coherentStokes': None, '
+# CorrelatedDataProduct.subArrayPointing.correlator.channelWidth': 3051.7578125,
+# 'CorrelatedDataProduct.subArrayPointing.correlator.channelsPerSubband': 64,
+# 'CorrelatedDataProduct.subArrayPointing.correlator.integrationInterval': 1.00139008,
+# 'CorrelatedDataProduct.subArrayPointing.correlator.object_id': '7407B2B012E853DDE053144A17AC905E',
+# 'CorrelatedDataProduct.subArrayPointing.correlator.processingType': 'Correlator',
+# 'CorrelatedDataProduct.subArrayPointing.correlator.topocentricFrequencyCorrection': 0,
+# 'CorrelatedDataProduct.subArrayPointing.duration': 0.0,
+# 'CorrelatedDataProduct.subArrayPointing.endTime': datetime.datetime(2018, 8, 20, 5, 47, 36),
+# 'CorrelatedDataProduct.subArrayPointing.flysEye': None,
+# 'CorrelatedDataProduct.subArrayPointing.incoherentStokes': None,
+# 'CorrelatedDataProduct.subArrayPointing.measurementDescription': 'P124+62',
+# 'CorrelatedDataProduct.subArrayPointing.measurementType': 'Target',
+# 'CorrelatedDataProduct.subArrayPointing.nonStandard': None,
+# 'CorrelatedDataProduct.subArrayPointing.numberOfBeamFormedDataProducts': 0,
+# 'CorrelatedDataProduct.subArrayPointing.numberOfCorrelatedDataProducts': 243,
+# 'CorrelatedDataProduct.subArrayPointing.numberOfProcessing': 1,
+# 'CorrelatedDataProduct.subArrayPointing.object_id': '7407B2B012EA53DDE053144A17AC905E',
+# 'CorrelatedDataProduct.subArrayPointing.pointing.altitude': 0.0,
+# 'CorrelatedDataProduct.subArrayPointing.pointing.azimuth': 0.0,
+# 'CorrelatedDataProduct.subArrayPointing.pointing.declination': 61.9895038889,
+# 'CorrelatedDataProduct.subArrayPointing.pointing.equinox': 'J2000',
+#  'CorrelatedDataProduct.subArrayPointing.pointing.object_id': '7407B2B012E953DDE053144A17AC905E',
+# 'CorrelatedDataProduct.subArrayPointing.pointing.rightAscension': 124.6781625,
+# 'CorrelatedDataProduct.subArrayPointing.processing': ['correlator'],
+# 'CorrelatedDataProduct.subArrayPointing.relations': 'LAZY_TYPED_LIST SKIPPED',
+# 'CorrelatedDataProduct.subArrayPointing.startTime': datetime.datetime(2018, 8, 20, 5, 47, 36),
+# 'CorrelatedDataProduct.subArrayPointing.subArrayPointingIdentifier': 890463,
+# 'CorrelatedDataProduct.subArrayPointing.subArrayPointingIdentifierName': 'P124+62',
+# 'CorrelatedDataProduct.subArrayPointing.subArrayPointingIdentifierSource': 'MoM',
+# 'CorrelatedDataProduct.subArrayPointing.targetName': 'P124+62',
+# 'CorrelatedDataProduct.subArrayPointingIdentifier': 890463,
+# 'CorrelatedDataProduct.subArrayPointingIdentifierName': 'P124+62',
+# 'CorrelatedDataProduct.subArrayPointingIdentifierSource': 'MoM',
+# 'CorrelatedDataProduct.subband': 264}

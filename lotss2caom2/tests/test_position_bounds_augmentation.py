@@ -2,7 +2,7 @@
 # ******************  CANADIAN ASTRONOMY DATA CENTRE  *******************
 # *************  CENTRE CANADIEN DE DONNÉES ASTRONOMIQUES  **************
 #
-#  (c) 2023.                            (c) 2023.
+#  (c) 2024.                            (c) 2024.
 #  Government of Canada                 Gouvernement du Canada
 #  National Research Council            Conseil national de recherches
 #  Ottawa, Canada, K1A 0R6              Ottawa, Canada, K1A 0R6
@@ -61,102 +61,38 @@
 #  <http://www.gnu.org/licenses/>.      pas le cas, consultez :
 #                                       <http://www.gnu.org/licenses/>.
 #
-#  $Revision: 4 $
+#  Revision: 4
 #
 # ***********************************************************************
 #
 
-from mock import patch
-
-from lotss2caom2 import fits2caom2_augmentation
-from caom2.diff import get_differences
-from caom2pipe import manage_composable as mc
-from lotss2caom2 import lotss_execute
-
-import glob
-import helpers
-import os
-import shutil
-
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
-TEST_DATA_DIR = os.path.join(THIS_DIR, 'data')
+from caom2pipe.manage_composable import read_obs_from_file, write_obs_to_file
+from lotss2caom2.lotss_execute import LOTSSHierarchyStrategy
+from lotss2caom2.position_bounds_augmentation import visit
 
 
-def pytest_generate_tests(metafunc):
-    obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P*')
-    # obs_id_list = glob.glob(f'{TEST_DATA_DIR}/P000+23')
-    metafunc.parametrize('test_name', obs_id_list)
-
-
-@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
-@patch('lotss2caom2.lotss_execute.http_get')
-@patch('lotss2caom2.clients.ASTRONClientCollection')
-def test_main_app(
-    clients_mock,
-    http_get_mock,
-    retrieve_provenance_mock,
-    test_name,
-    test_data_dir,
-    test_config,
-    tmp_path,
-):
-    import logging
-    # logging.getLogger('DR2Mosaic').setLevel(logging.DEBUG)
+def test_visit(test_data_dir, test_config, tmp_path):
     test_config.change_working_directory(tmp_path)
-    clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
+    test_mosaic_id = 'P002+18'
+    test_dir = f'{test_data_dir}/{test_mosaic_id}'
+    observation = read_obs_from_file(f'{test_dir}/{test_mosaic_id}_dr2.expected.xml')
+    test_config.working_directory = tmp_path
+    test_fqn = f'{test_dir}/mosaic-blanked.fits'
+    hierarchy = LOTSSHierarchyStrategy(test_fqn, test_mosaic_id)
+    test_artifact = observation.planes[hierarchy.product_id].artifacts[hierarchy.file_uri]
+    # for part in test_artifact.parts.values():
+    #     for chunk in part.chunks:
+    #         assert chunk.position.axis.bounds is None, f'{part.name} precondition'
+    kwargs = {
+        'hierarchy': hierarchy,
+        'working_directory': f'{test_data_dir}/{test_mosaic_id}/{test_mosaic_id}',
+        'log_file_directory': None,
+    }
+    observation = visit(observation, **kwargs)
+    assert observation is not None, 'expect a return value'
+    for part in test_artifact.parts.values():
+        for chunk in part.chunks:
+            assert chunk.position.axis.bounds is not None, f'{part.name} postcondition'
 
-    def _endpoint_mock(url):
-        result = type('response', (), {})()
-        result.close = lambda: None
-        with open(f'{test_name}/obs.xml') as f:
-            result.text = f.read()
-        return result
+    write_obs_to_file(observation, './fpf_end.xml')
 
-    clients_mock.https_session.get.side_effect = _endpoint_mock
-
-    def _http_get_mock(url, fqn, ignore_timeout):
-        assert fqn == '/tmp/fits_headers.tar', f'wrong url {fqn}'
-        shutil.copy(f'{test_name}/fits_headers.tar', '/tmp')
-
-    http_get_mock.side_effect = _http_get_mock
-
-    if 'P124' in test_name:
-        retrieve_provenance_mock.side_effect = helpers._get_db_query_mock_P164
-    elif 'P005' in test_name:
-        retrieve_provenance_mock.side_effect = [helpers._get_db_query_mock_P005B(), helpers._get_db_query_mock_P005A()]
-    else:
-        retrieve_provenance_mock.return_value = []
-
-    expected_fqn = f'{test_name}/{os.path.basename(test_name)}_dr2.expected.xml'
-    actual_fqn = expected_fqn.replace('expected', 'actual')
-    if os.path.exists(actual_fqn):
-        os.unlink(actual_fqn)
-
-    observations = {}
-    expander = lotss_execute.LOTSSHierarchyStrategyContext(clients_mock, test_config)
-    expander.expand(test_name)
-    for hierarchy in expander.hierarchies.values():
-        kwargs = {
-            'hierarchy': hierarchy,
-            'config': test_config,
-        }
-        observation = observations.get(hierarchy.obs_id)
-        observation = fits2caom2_augmentation.visit(observation, **kwargs)
-        observations[hierarchy.obs_id] = observation
-
-    if len(observations) == 0:
-        assert False, f'Did not create observation for {test_name}'
-    else:
-        for observation in observations.values():
-            if os.path.exists(expected_fqn):
-                expected = mc.read_obs_from_file(expected_fqn)
-                compare_result = get_differences(expected, observation)
-                if compare_result is not None:
-                    mc.write_obs_to_file(observation, actual_fqn)
-                    compare_text = '\n'.join([r for r in compare_result])
-                    msg = f'Differences found in observation {expected.observation_id}\n' f'{compare_text}'
-                    raise AssertionError(msg)
-            else:
-                mc.write_obs_to_file(observation, actual_fqn)
-                assert False, f'nothing to compare to for {test_name}, missing {expected_fqn}'
-    # assert False  # cause I want to see logging messages

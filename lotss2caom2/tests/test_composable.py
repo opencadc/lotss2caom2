@@ -85,6 +85,7 @@ def test_run(run_mock, clients_mock, change_test_dir, test_config, tmp_path):
     test_config.change_working_directory(tmp_path.as_posix())
     test_config.data_sources = ['pyvo_data_source:test']
     test_config.proxy_file_name = 'test_proxy.fqn'
+    test_config.task_types = [TaskType.INGEST]
     test_config.write_to_file(test_config)
 
     with open(test_config.proxy_fqn, 'w') as f:
@@ -118,6 +119,7 @@ def test_run_remote_do_one_mock(run_mock, clients_mock, data_source_mock, change
     test_config.change_working_directory(tmp_path.as_posix())
     test_config.proxy_file_name = 'test_proxy.fqn'
     test_config.data_sources = ['pyvo_data_source:test']
+    test_config.task_types = [TaskType.INGEST]
     test_config.write_to_file(test_config)
 
     with open(test_config.proxy_fqn, 'w') as f:
@@ -136,8 +138,8 @@ def test_run_remote_do_one_mock(run_mock, clients_mock, data_source_mock, change
 
 
 @patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext.unset')
-@patch('lotss2caom2.preview_augmentation.visit')
-@patch('lotss2caom2.fits2caom2_augmentation.visit')
+@patch('lotss2caom2.preview_augmentation.LOTSSPreview.visit')
+@patch('lotss2caom2.fits2caom2_augmentation.LoTSSFits2caom2Visitor.visit')
 @patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._expand')
 @patch('lotss2caom2.lotss_execute.ASTRONClientCollection')
 def test_run_client_mock(
