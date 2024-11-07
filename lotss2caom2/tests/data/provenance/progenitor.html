@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+
+    <!-- template version '@(#)$Revision: 1.75 $' -->
+
+    <title>Lofar Long Term Archive</title>
+    
+    <link href="/opt/astrowise/awehome39/master/awlofar/services/archive/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="/opt/astrowise/awehome39/master/awlofar/services/archive/lofar.css" rel="stylesheet" type="text/css">
+
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery-1.12.4.js"></script>
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/awlofar/services/archive/bootstrap/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/awlofar/services/archive/lofar20200514.js"></script>
+
+    <!-- See webpage of jquery http://jquery.com/ -->
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery.metadata.js"></script>
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery-ui.js"></script>
+    <link rel="stylesheet" href="/opt/astrowise/awehome39/master/common/services/javascript/../css/jquery-ui.css" type="text/css">
+    <link rel="stylesheet" href="/opt/astrowise/awehome39/master/awlofar/services/archive/font-awesome/css/font-awesome.min.css" type="text/css">
+    
+    <!-- See webpage of tablesorter http://mottie.github.io/tablesorter/ -->
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery.tablesorter.min.js"></script>
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery.tablesorter.widgets.min.js"></script>
+    <script type="text/javascript" src="/opt/astrowise/awehome39/master/common/services/javascript/jquery.checkboxes.js"></script>
+
+    <script type="text/javascript">
+    
+        LTA.setPath('/opt/astrowise/awehome39/master/awlofar/services/archive/');
+        
+        LTA.setState('mode', 'query_result_page_user');
+        LTA.setState('project_id_selected', -1);
+        LTA.setState('project_name_selected', 'All public data');
+        
+        
+        $(document).ready(function() {
+            /* intialize all tooltips */
+            $( document ).tooltip({
+                items: "[tooltip]",
+                content: function() {
+                    var element = $( this );
+                    var tooltip = $('#' + element.attr('tooltip'));
+                    return tooltip.html();
+                }
+            });
+            /* init table sorter */
+            $(".table").tablesorter({
+                widgets:['stickyHeaders', 'zebra']
+            });
+            
+            // History handling for back/forward button
+            window.onpopstate = LTA.handlePopState;
+
+        });
+    </script>
+
+
+    <link rel="shortcut icon" href="/opt/astrowise/awehome39/master/awlofar/services/archive/favicon.ico" type="image/x-icon">
+
+</head>
+
+<body>
+
+
+    <div class="container-fluid">
+        <div class="row aw-row-top">
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+            <div class="col-xs-12 col-sm-12 col-md-10 aw-border aw-border-left-right">
+                <img class="logo hidden-xs hidden-sm" src="/opt/astrowise/awehome39/master/awlofar/services/archive/assets/logo.jpg" alt="Logo">
+                <img class="logo visible-xs-inline visible-sm-inline" src="/opt/astrowise/awehome39/master/awlofar/services/archive/assets/logo_small.png" alt="Logo">
+                <div class="login-container">
+                     &nbsp;&nbsp;
+                    <a href="https://lta-login.lofar.eu/Login?prefix=&amp;db_name=db.lofar.target.rug.nl&amp;change_pw_url=https%3A//webportal.astron.nl/pwm%3FlogoutURL%3Dhttps%3A//lta.lofar.eu/Lofar%3Fproject%3DALL%26product%3Dall_observation_pipeline%26mode%3Dquery_result_page_user%26ObservationId%3D689778&amp;change_pw=1&amp;cookie_lifetime=31&amp;nextpage=https%3A//lta.lofar.eu/Lofar%3Fproject%3DALL%26product%3Dall_observation_pipeline%26mode%3Dquery_result_page_user%26ObservationId%3D689778&amp;domain=lofar.eu&amp;target_server=lta&amp;create_account_url=https%3A//lofar.astron.nl/useradministration/public/setUpUserAccount.do"><span class="login">LOGIN</span></a>
+                </div>
+            </div>
+            <div class="hidden-xs hidden-sm col-md-1" style=""></div>
+        </div>
+
+
+        <div class="row aw-row-banner" style="display:none">
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+            <div class="col-xs-12 col-sm-12 col-md-10 aw-border aw-border-left-right"></div>
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+        </div>  
+
+
+        <div class="row aw-row-menu">
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+            <div class="col-xs-12 col-sm-12 col-md-10 aw-border-left-right" style="background-color: #773B6F; border-color: #3D003B;">
+                <nav class="navbar navbar-default" style="background-color:transparent; border: 0; margin-bottom: 0;">      
+                    <div class="container-fluid">
+
+                        <div class="navbar-header pull-right">
+                            <div class="btn-group hidden"  id="selected-project">
+                                <button type="button" class="btn btn-warning navbar-btn dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="You have selected this project. All data searches will be limited to this project. Choose 'Unset' from the submenu to deselect this project and to search through all data.">
+                                    <span id="selected-project-name">All public data</span>&nbsp;<i class="fa fa-question-circle"></i> <span class="caret"></span>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a href="Lofar?mode=latest_page">Show data</a></li>
+                                    <li><a href="javascript:void(0);" onclick="LTA.showProjectDetails(LTA.getState('project_id_selected'), LTA.getState('project_name_selected'));">Show details</a></li>
+                                    <li><a href="javascript:void(0);" onclick="LTA.setProject(-1, 'ALL');">Unset</a></li>
+                                </ul>
+                            </div>
+                            <button type="button" style="margin-left: 1em;" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                                <span class="sr-only">Toggle navigation</span>
+                                <span class="icon-bar"></span>
+                                <span class="icon-bar"></span>
+                                <span class="icon-bar"></span>
+                            </button>
+                        </div>
+
+                        <div id="navbar" class="navbar-collapse collapse">
+                            <ul class="nav navbar-nav">
+                                <li ><a href="/">HOME</a></li>
+                                <li><a href="/Lofar?product=Basic&amp;mode=query_page_object">SEARCH DATA</a></li>
+                                <li><a href="/Lofar?mode=projects_page&amp;previous=/Lofar%3Fproject%3DALL%26product%3Dall_observation_pipeline%26mode%3Dquery_result_page_user%26ObservationId%3D689778">BROWSE PROJECTS</a></li>
+                                <!-- <li><a href="/Lofar?mode=latest_page">SHOW LATEST</a></li> -->
+                                <li><a href="/Lofar?mode=help_page">HELP</a></li>
+                                </ul>
+                                </li>
+                            </ul>
+                        </div><!--/.nav-collapse -->
+                    </div>            
+                </nav>      
+                       
+            </div>
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+        </div>
+
+
+        <div class="row aw-row-main-content">
+            <div class="hidden-xs hidden-sm col-md-1" style=""></div>
+            <div id="aw-main-content" class="col-xs-12 col-sm-12 col-md-10 aw-border aw-border-left-right-bottom">
+
+                <!-- Default template for the main content ($MAIN) in Lofar.html.tmpl -->
+
+
+
+<form name="lofar_form" id="lofar_form" action="Lofar" method="POST">
+    <input type="hidden" name="project"              id="project"              value="ALL">
+    <input type="hidden" name="selected_staging_cb"  id="selected_staging_cb"  value="eJxrYKotZNADAAaFAZ8.">
+    <input type="hidden" name="form_input_dict"      id="form_input_dict"      value="eJxrYKotZNCI4GVgYPBPKk4tKkssyczP80wpZPQqauNiiOAASuQmVsQX5ZcXFzJ5p5TqAQBkqg6K">
+    <input type="hidden" name="cur_query_offset"     id="cur_query_offset"     value="1">
+
+    <!-- These variables can be set by javascript on the client side
+        Two exceptions; LofarQueryForm and LofarFilterForm will set "mode" and "product" -->
+    <input type="hidden" name="set_cookie"           id="set_cookie"           value="">
+    <input type="hidden" name="mode"                 id="mode"                 value="query_result_page_user">
+    <input type="hidden" name="product"              id="product"              value="all_observation_pipeline">
+    <input type="hidden" name="query_offset"         id="query_offset"         value="">
+    <input type="hidden" name="query_order_by"       id="query_order_by"       value="">
+    <input type="hidden" name="query_order_by_order" id="query_order_by_order" value="">
+
+    <div style="text-align: center"><h3><span class="clickable_heading_desc" id="h3_Observation" onclick="LTA.toggle_table('Observation');">Observation (total 0)</span></h3>
+<div id="div_Observation" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=Observation');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No Observation found</p>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_desc" id="h3_AveragingPipeline" onclick="LTA.toggle_table('AveragingPipeline');">Averaging Pipeline (total 1)</span></h3>
+<div id="div_AveragingPipeline" style="display:block"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=AveragingPipeline');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><script type="text/javascript">jQuery(function($) { $('#result_table_AveragingPipeline').checkboxes('range', true); });</script>
+<table id="result_table_AveragingPipeline" class="table table-condensed table-striped table-hover">
+<thead><tr>
+  <th>#</th>
+  <th data-sorter="false"><input title="Check/uncheck all items" type="checkbox" id="cb_all_stage" onclick="LTA.check_all_cb_by_name('cb|stage|AveragingPipeline|', this.checked);"></th>
+  <th  tooltip="tooltip_Project" >Project </th>
+  <th   >Creator </th>
+  <th  tooltip="tooltip_Privileges" >Privileges </th>
+  <th  tooltip="tooltip_Release_Date" >Release Date </th>
+  <th  tooltip="tooltip_Pipeline_Name" >Pipeline Name </th>
+  <th  tooltip="tooltip_Pipeline_Version" >Pipeline Version </th>
+  <th  tooltip="tooltip_SAS_Id" >SAS Id </th>
+  <th   >SAS Id Source </th>
+  <th  tooltip="tooltip_Process_Identifier" >Process Identifier </th>
+  <th  tooltip="tooltip_Process_Identifier_Name" >Process Identifier Name </th>
+  <th  tooltip="tooltip_Process_Identifier_Source" >Process Identifier Source </th>
+  <th   >Frequency Integration Step </th>
+  <th   >Time Integration Step </th>
+  <th  tooltip="tooltip_Strategy_Name" >Strategy Name </th>
+  <th   >Flag Auto Correlations </th>
+  <th  tooltip="tooltip_Strategy_Description" >Strategy Description </th>
+  <th   >Demixing </th>
+  <th  tooltip="tooltip_Number_Of_Correlated_DataProducts" >Number Of Correlated DataProducts </th>
+  <th  tooltip="tooltip_Start_Time" >Start Time </th>
+  <th  tooltip="tooltip_Duration" >Duration [s]</th>
+  <th  tooltip="tooltip_End_Time" >End Time </th>
+  <th  tooltip="tooltip_Creation_Date" >Creation Date </th>
+  <th  tooltip="tooltip_Parset" >Parset </th>
+  <th  tooltip="tooltip_Source_DataProduct" >Source DataProduct </th>
+  <th   >All Dataproducts </th>
+  <th  tooltip="tooltip_Quality" >Quality </th>
+</tr></thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td><i class="fa fa-times" style="color:darkred" tooltip="tooltip_no_anon"></i></td>  <td><span tooltip="tooltip_project_LT10_010">LT10_010</span></td>
+  <td>AWTIER0</td>
+  <td>4</td>
+  <td>2020-05-14</td>
+  <td>P000+23/1.1/TP</td>
+  <td>n/a</td>
+  <td>689778</td>
+  <td>SAS</td>
+  <td>922775</td>
+  <td>P000+23/1.1/TP</td>
+  <td>MoM</td>
+  <td>4</td>
+  <td>1</td>
+  <td>Preprocessing Pipeline</td>
+  <td>1</td>
+  <td>Preprocessing only</td>
+  <td>1</td>
+  <td><a href="Lofar?project=ALL&amp;mode=query_result_page&amp;product=CorrelatedDataProduct&amp;pipeline_object_id=7CB88D2B6B6F3778E053164A17ACB062">243</a></td>
+  <td>2018-12-07 14:26:25</td>
+  <td>25420.0</td>
+  <td>2018-12-07 21:30:05</td>
+  <td>2018-12-11 04:31:16</td>
+  <td><a href="Lofar?project=ALL&amp;mode=download_parset&amp;product=ParsetFile&amp;object_id=7CB88D2B6A703778E053164A17ACB062">file</a></td>
+  <td><a href="Lofar?project=ALL&amp;mode=query_result_page&amp;product=CorrelatedDataProduct&amp;source_pipeline=7CB88D2B6B6F3778E053164A17ACB062&amp;object_type=AveragingPipeline">show</a></td>
+  <td><a href="Lofar?project=ALL&amp;mode=show_dataproducts_pipe&amp;product=AveragingPipeline&amp;pipeline_object_id=7CB88D2B6B6F3778E053164A17ACB062">show</a></td>
+  <td class="unknown">unknown</td>
+</tr>
+</tbody></table>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_asc" id="h3_CalibrationPipeline" onclick="LTA.toggle_table('CalibrationPipeline');">Calibration Pipeline (total 0)</span></h3>
+<div id="div_CalibrationPipeline" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=CalibrationPipeline');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No Calibration Pipeline found</p>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_asc" id="h3_ImagingPipeline" onclick="LTA.toggle_table('ImagingPipeline');">Imaging Pipeline (total 0)</span></h3>
+<div id="div_ImagingPipeline" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=ImagingPipeline');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No Imaging Pipeline found</p>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_asc" id="h3_LongBaselinePipeline" onclick="LTA.toggle_table('LongBaselinePipeline');">Long Baseline Pipeline (total 0)</span></h3>
+<div id="div_LongBaselinePipeline" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=LongBaselinePipeline');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No Long Baseline Pipeline found</p>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_asc" id="h3_PulsarPipeline" onclick="LTA.toggle_table('PulsarPipeline');">Pulsar Pipeline (total 0)</span></h3>
+<div id="div_PulsarPipeline" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=PulsarPipeline');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No Pulsar Pipeline found</p>
+</div></div><br>
+<div style="text-align: center"><h3><span class="clickable_heading_asc" id="h3_UnspecifiedProcess" onclick="LTA.toggle_table('UnspecifiedProcess');">UnspecifiedProcess (total 0)</span></h3>
+<div id="div_UnspecifiedProcess" style="display:none"><ul class="header-sub"><li><a href="javascript:void(0);" onclick="LTA.openColumnWin('Lofar?project=ALL&amp;mode=table_columns&amp;table_columns=1&amp;table=UnspecifiedProcess');" tooltip="tooltip_edit_columns">edit columns</a></li>
+</ul><p class="NoData">No UnspecifiedProcess found</p>
+</div></div><br>
+
+    
+</form>
+
+<div style="display:none;">
+    <div id="tooltip_edit_columns"><h3>Edit Columns</h3><p>Select which columns to show or hide.</p></div>
+<div id="tooltip_Project"><h3>Project</h3><p>Project code identifying the project/proposal the data belongs to.</p></div>
+<div id="tooltip_Privileges"><h3>Privileges</h3><p>Code to identify the privilege settings in the database.</p></div>
+<div id="tooltip_Release_Date"><h3>Release Date</h3><p>Date at which the data within the project will be publically released (still active projects may move backwards)</p></div>
+<div id="tooltip_Pipeline_Name"><h3>Pipeline Name</h3><p>Name of the pipeline as given in MoM.</p></div>
+<div id="tooltip_Pipeline_Version"><h3>Pipeline Version</h3><p>N/A.</p></div>
+<div id="tooltip_SAS_Id"><h3>SAS Id</h3><p>Unique ID corresponding to the "L"-number (SAS-ID) in all systems.</p></div>
+<div id="tooltip_Process_Identifier"><h3>Process Identifier</h3><p>Unique ID as given in MoM (MoM-ID) for the DataProduct(s) produced by a Pipeline, click to show</p></div>
+<div id="tooltip_Process_Identifier_Name"><h3>Process Identifier Name</h3><p>Name of the Process Identifier as given in MoM</p></div>
+<div id="tooltip_Process_Identifier_Source"><h3>Process Identifier Source</h3><p>Source of the Process Identifier as given in MoM</p></div>
+<div id="tooltip_Strategy_Name"><h3>Strategy Name</h3><p>Name of the observation/pipeline temoplate used.</p></div>
+<div id="tooltip_Strategy_Description"><h3>Strategy Description</h3><p>Description of the observation/pipeline temoplate used.</p></div>
+<div id="tooltip_Number_Of_Correlated_DataProducts"><h3>Number Of Correlated DataProducts</h3><p>The number of CorrelatedDataProduct(s) produced by this Pipeline or Observation, click to show.</p></div>
+<div id="tooltip_Start_Time"><h3>Start Time</h3><p>Start Time in UTC.</p></div>
+<div id="tooltip_Duration"><h3>Duration</h3><p>Duration in seconds.</p></div>
+<div id="tooltip_End_Time"><h3>End Time</h3><p>End Time in UTC.</p></div>
+<div id="tooltip_Creation_Date"><h3>Creation Date</h3><p>Date that the observation or pipeline was delivered to the archive.</p></div>
+<div id="tooltip_Parset"><h3>Parset</h3><p>Link to the parset-file.</p></div>
+<div id="tooltip_Source_DataProduct"><h3>Source DataProduct</h3><p>Show the source DataProduct(s) of this Pipeline.</p></div>
+<div id="tooltip_Quality"><h3>Quality</h3><p>Annotated quality metric of the observation/pipeline</p></div>
+<div id="tooltip_no_anon">                                 <p>Anonymous users do not have staging privileges. If you have a LTA account,                                 please log in using the LOGIN button (top right corner). If you don't have an account yet,                                 please check the documentation on how to obtain one.</p></div>
+<div id="tooltip_project_LT10_010"><h3>Project Information</h3><table style="font-size:8pt;"><tbody> <tr class="TooltipRowOdd"><td>contactAuthor</td><td>Shimwell,  Timothy</td></tr><tr class="TooltipRowEven"><td>primaryInvestigator</td><td>Shimwell,  Timothy</td></tr><tr class="TooltipRowOdd"><td>projectCode</td><td>LT10_010</td></tr><tr class="TooltipRowEven"><td>projectDescription</td><td>The LOFAR Two-metre Sky Survey: Opening up a new window on the Universe</td></tr><tr class="TooltipRowOdd"><td>releaseDate</td><td>2021-05-30</td></tr></tbody></table> </div>
+</div>
+
+            </div>
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+        </div>
+
+
+
+        <div class="row aw-row-footer">
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+            <div class="col-xs-12 col-sm-12 col-md-10">
+                <i class="pull-left">&copy; ASTRON Netherlands Institute for Radio Astronomy</i>
+                <div style="clear:both">
+                    powered by<br>
+                    <a href="http://www.astro-wise.org/" target="_blank">
+                        <img border="0" src="/opt/astrowise/awehome39/master/awlofar/services/archive/assets/astrowise-logo.gif" style="margin-top:0.4em; width: 70px; height:38px;" alt="logo">
+                    </a>
+                </div>        
+            </div>
+            <div class="hidden-xs hidden-sm col-md-1"></div>
+        </div>
+
+        <div style="display:none;">
+            
+        </div>
+
+   </div>  <!-- container-fluid -->
+
+    <div class="modal" tabindex="-1" role="dialog" id="please-wait">
+      <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Please wait</h4>
+          </div>
+          <div class="modal-body">
+            <p><img src="/opt/astrowise/awehome39/master/awlofar/services/archive//assets/loading.gif" style="margin: 1em;"></p>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
+
+</body>
+</html>

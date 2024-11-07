@@ -439,8 +439,8 @@ def _observation(collection, observation_id):
 # 'CorrelatedDataProduct.endTime': datetime.datetime(2018, 8, 20, 13, 47, 34),
 # 'CorrelatedDataProduct.fileFormat': 'AIPS++/CASA',
 # 'CorrelatedDataProduct.filename': 'L664568_SB264_uv.MS_697365ea.tar',
-# 'CorrelatedDataProduct.globalname': '', 'CorrelatedDataProduct.
-# integrationInterval': 1.00139008,
+# 'CorrelatedDataProduct.globalname': '',
+# 'CorrelatedDataProduct.integrationInterval': 1.00139008,
 # 'CorrelatedDataProduct.isDirty': 0,
 # 'CorrelatedDataProduct.isValid': 1,
 # 'CorrelatedDataProduct.maximumFrequency': 124.31640625,

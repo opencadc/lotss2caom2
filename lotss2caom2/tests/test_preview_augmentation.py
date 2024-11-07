@@ -70,7 +70,7 @@ import glob
 import shutil
 from os.path import basename
 from caom2pipe.caom_composable import get_all_artifact_keys
-from caom2pipe.manage_composable import read_obs_from_file
+from caom2pipe.manage_composable import read_obs_from_file, write_obs_to_file
 from lotss2caom2 import preview_augmentation
 from lotss2caom2 import lotss_execute
 
@@ -143,3 +143,5 @@ def test_preview_augmentation(clients_mock, http_get_mock, preview_get_mock, pro
             assert len(artifact_keys) == 495, f'pre-condition artifact count {len(artifact_keys)}'
         else:
             assert len(artifact_keys) == 9, f'wrong number of artifacts {len(artifact_keys)}'
+
+    write_obs_to_file(observation, f'{observation.observation_id}.xml')

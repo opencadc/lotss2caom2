@@ -93,3 +93,6 @@ def test_visit(test_data_dir, test_config, tmp_path):
     for part in test_artifact.parts.values():
         for chunk in part.chunks:
             assert chunk.position.axis.bounds is not None, f'{part.name} postcondition'
+
+    write_obs_to_file(observation, './fpf_end.xml')
+

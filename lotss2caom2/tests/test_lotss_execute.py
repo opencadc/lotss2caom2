@@ -68,9 +68,12 @@
 
 import shutil
 
-from caom2pipe.execute_composable import MetaVisitExpander, OrganizeWithContext
+from caom2pipe.caom_composable import get_all_artifact_keys
+from caom2pipe.execute_composable import MetaVisitExpander, OrganizeWithContext, OrganizeWithHierarchy
+from caom2pipe.execute_composable import MetaVisitHierarchies
 from caom2pipe.manage_composable import Config, Observable2, TaskType
 from lotss2caom2.lotss_execute import DATA_VISITORS, execute, LOTSSHierarchyStrategyContext, META_VISITORS, remote_execute
+from lotss2caom2.lotss_execute import DATA_VISITORS_FASTER, META_VISITORS_FASTER
 from mock import ANY, call, patch
 from unittest import skip
 
@@ -342,3 +345,68 @@ def test_execute_nominal(
     assert not clients_mock.return_value.data_client.read.called, 'data'
     clients_mock.return_value.metadata_client.read.assert_called_with('LOTSS', 'test_content_dr2'), 'metadata'
     clients_mock.return_value.metadata_client.create.assert_called_with(ANY), 'metadata create'
+
+
+@patch('lotss2caom2.fits2caom2_augmentation_faster.visit')
+@patch('lotss2caom2.preview_augmentation_faster.visit')
+@patch('lotss2caom2.lotss_execute.LOTSSHierarchyStrategyContext._retrieve_provenance_metadata')
+@patch('lotss2caom2.lotss_execute.http_get')
+@patch('lotss2caom2.clients.ASTRONClientCollection')
+def test_organize_faster_nominal(
+    clients_mock,
+    http_get_mock,
+    session_mock,
+    preview_mock,
+    visit_mock,
+    test_config,
+    test_data_dir,
+    tmp_path,
+    change_test_dir,
+):
+    # one mosaic id, 493 files
+    test_config.change_working_directory(tmp_path)
+    clients_mock.py_vo_tap_client.search.side_effect = helpers._search_mosaic_id_mock
+
+    def _endpoint_mock(url):
+        result = type('response', (), {})()
+        result.close = lambda: None
+        with open(f'{test_data_dir}/P005+21/obs.xml') as f:
+            result.text = f.read()
+        return result
+
+    clients_mock.https_session.get.side_effect = _endpoint_mock
+
+    def _http_get_mock(url, fqn, ignore_timeout):
+        shutil.copy(f'{test_data_dir}/P005+21/fits_headers.tar', '/tmp')
+
+    http_get_mock.side_effect = _http_get_mock
+
+    session_mock.side_effect = [helpers._get_db_query_mock_P005A(), helpers._get_db_query_mock_P005B()]
+    clients_mock.metadata_client.read.side_effect = helpers._observation
+
+    def _visit_mock(observation, **kwargs):
+        import logging
+        logging.error('visit mock!!!!!')
+        return observation
+
+    preview_mock.side_effect = _visit_mock
+    visit_mock.side_effect = _visit_mock
+
+    test_context = LOTSSHierarchyStrategyContext(clients_mock, test_config)
+
+    test_config.task_types = [TaskType.INGEST]
+    test_config.change_working_directory(tmp_path)
+    test_observable = Observable2(test_config)
+    test_subject = OrganizeWithHierarchy(test_config, test_context, clients_mock, test_observable)
+    test_subject.choose(META_VISITORS_FASTER, DATA_VISITORS_FASTER)
+    assert len(test_subject._executors) == 1, len(test_subject._executors)
+    assert isinstance(test_subject._executors[0], MetaVisitHierarchies), test_subject._executors
+
+    entry = 'P005+21'
+    test_result_value, test_result_message = test_subject.do_one(entry)
+    assert test_result_value == 0, f'expect success {entry} {test_result_message}'
+    assert test_result_message is None, f'success means no message {entry} {test_result_message}'
+    assert visit_mock.called, 'visit called'
+    assert visit_mock.call_count == 1, 'visit call count'
+    assert preview_mock.called, 'preview visit called'
+    assert preview_mock.call_count == 1, 'preview visit call count'
