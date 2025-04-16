@@ -1,12 +1,15 @@
 import sys
 from astropy import units
 from caom2_24 import ObservationReader as or_24
+from caom2_24 import Circle as Circle_24
+from caom2_24 import Position as Position_24
 from caom2 import ObservationWriter as ow_25
 from caom2 import Algorithm, Artifact, CalibrationLevel, Circle, DataLinkSemantics, DataProductType
 from caom2 import Dimension2D, Energy, EnergyBand, Instrument
-from caom2 import MultiShape, Observation, ObservationIntentType, Plane, Point, Polarization, Position, Proposal, Provenance
-from caom2 import ReleaseType, Target, Time, Telescope, TypedSet
-from caom2.common import compute_bucket
+from caom2 import MultiShape, ObservationIntentType, Plane, Point, Polarization, PolarizationState
+from caom2 import Polygon, Position
+from caom2 import Proposal, Provenance
+from caom2 import ReleaseType, SimpleObservation, Target, Time, Telescope, TypedSet
 from caom2.dali import Interval
 
 
@@ -15,7 +18,7 @@ def main():
     writer_25 = ow_25(validate=False, write_empty_collections=False)
     reader_24 = or_24(validate=False)
     obs_24 = reader_24.read(sys.argv[1])
-    
+
     proposal = Proposal(
         id=obs_24.proposal.id,
         pi=obs_24.proposal.pi_name,
@@ -36,7 +39,7 @@ def main():
     instrument = Instrument(
         name=obs_24.instrument.name
     )
-    obs = Observation(
+    obs = SimpleObservation(
         collection=obs_24.collection,
         uri=f'caom:{obs_24.collection}/{obs_24.observation_id}',
         algorithm=Algorithm(
@@ -72,15 +75,15 @@ def main():
             provenance=provenance,
         )
         # Erik Osinga
-        # LoTSS data are taken (and stored) at a time resolution of 1 s and a frequency resolution of 
-        # 16 channels per 195.3 kHz sub-band (SB) by the observatory. Thus 12.1875 kHz frequency 
+        # LoTSS data are taken (and stored) at a time resolution of 1 s and a frequency resolution of
+        # 16 channels per 195.3 kHz sub-band (SB) by the observatory. Thus 12.1875 kHz frequency
         # resolution. The total bandwidth is 48 MHz, so that would be almost 4000 channels.
-        # But for the LoTSS data (6'' resolution) we don't need such high resolution in time and 
-        # frequency. So  generally for imaging the LoTSS data people average to 8s time resolution 
-        # and 97.6 kHz frequency resolution. This is also the frequency resolution at which the 
+        # But for the LoTSS data (6'' resolution) we don't need such high resolution in time and
+        # frequency. So  generally for imaging the LoTSS data people average to 8s time resolution
+        # and 97.6 kHz frequency resolution. This is also the frequency resolution at which the
         # Stokes IQU cubes are produced. These cubes have 480 "channels" in that sense.
         num_channels = 480
-        channel_width_in_mhz = 0.1  # MHz => ( 168 MHz - 120 MHz ) = 48 MHz => / 480 channels 
+        channel_width_in_mhz = 0.1  # MHz => ( 168 MHz - 120 MHz ) = 48 MHz => / 480 channels
         channel_width_in_m = (channel_width_in_mhz * units.Hz).to(units.m, equivalencies=units.spectral()).value
         min_exposure = None
         max_exposure = None
@@ -105,8 +108,8 @@ def main():
                     # double-check with Pat that this is consistent with the intention of the model
                     # check with Pat that this value makes sense with LoTSS data and that resolution == channel width
                     # does the channel width vary as a function of frequency
-                    lower=channel_width,
-                    upper=channel_width,
+                    lower=channel_width_in_m,
+                    upper=channel_width_in_m,
                 )
         energy_bounds = Interval(
             lower=plane_24.energy.bounds.lower,
@@ -133,7 +136,12 @@ def main():
             resolution_bounds=resolution_bounds,
         )
         plane._energy = energy
-        if plane_24._position and plane_24._position.bounds and plane_24._position.bounds.center:
+        if(
+            plane_24._position
+            and plane_24._position.bounds
+            and isinstance(plane_24._position.bounds, Circle_24)
+            and plane_24._position.bounds.center
+        ):
             center_point = Point(
                 cval1=plane_24._position.bounds.center.cval1,
                 cval2=plane_24._position.bounds.center.cval2,
@@ -152,10 +160,10 @@ def main():
             # https://www.aanda.org/articles/aa/pdf/2013/08/aa20873-12.pdf, Table 1
             # minimum baseline (m) 68
             # JJK
-            # I think that for LoTSS they have done work to actually calibrate what the max 
-            # scale is.  From that work they find values of about 120'' (120/3600 degrees).  
-            # That analysis does not dwell on the frequency dependence as there are significant 
-            # noise and data processing issues that are more substantial than variation in 
+            # I think that for LoTSS they have done work to actually calibrate what the max
+            # scale is.  From that work they find values of about 120'' (120/3600 degrees).
+            # That analysis does not dwell on the frequency dependence as there are significant
+            # noise and data processing issues that are more substantial than variation in
             # scale based on perfect systems.
             #
             # the model allows for a range in resolution intervals and a range in max recoverable scale. Do the
@@ -177,58 +185,103 @@ def main():
                 max_recoverable_scale = max_recoverable_scale,
             )
             plane._position = position
-        time_samples = Interval(
-            lower=plane_24._time.bounds.lower,
-            upper=plane_24._time.bounds.upper,
-        )
-        min_duration = None
-        max_duration = None
-        for artifact_24 in plane_24.artifacts.values():
-            for part_24 in artifact_24.parts.values():
-                for chunk_24 in part_24.chunks:
-                    if chunk_24.time and chunk_24.time.exposure:
-                        if min_duration is None:
-                            min_duration = chunk_24.time.exposure
-                        else:
-                            min_duration = min(min_duration, chunk_24.time.exposure)
-                        if max_duration is None:
-                            max_duration = chunk_24.time.exposure
-                        else:
-                            max_duration = max(max_duration, chunk_24.time.exposure)
-        exposure_bounds = None
-        if min_duration and max_duration:
-            exposure_bounds = Interval(
-                lower=min_duration,
-                upper=max_duration,
+        elif(
+            plane_24._position
+            and plane_24._position.bounds
+            and isinstance(plane_24._position.bounds, Position_24)
+        ):
+            position_bounds = []
+            for point_24 in plane_24._position.bounds.points:
+                point = Point(
+                    cval1=point_24.cval1,
+                    cval2=point_24.cval2,
+                )
+                position_bounds.append(point)
+            position_dimension = Dimension2D(
+                naxis1=plane_24._position.dimension.naxis1,
+                naxis2=plane_24._position.dimension.naxis2,
             )
-        time = Time(
-            bounds=time_samples,
-            samples=[time_samples],
-            dimension=plane_24._time.dimension,
-            sample_size=plane_24._time.sample_size,
-            resolution=plane_24._time.resolution,
-            exposure=plane_24._time.exposure,
-            exposure_bounds=exposure_bounds,
-        )
-        plane._time = time
+            max_recoverable_scale = None
+            position_polygon = Polygon(points=position_bounds)
+            position_multi_shape = MultiShape(shapes=[position_polygon])
+            position = Position(
+                bounds=position_polygon,
+                samples=position_multi_shape,
+                min_bounds=position_polygon,
+                dimension=position_dimension,
+                max_recoverable_scale = max_recoverable_scale,
+                resolution=plane_24._position.resolution,
+                resolution_bounds=None,
+                sample_size=plane_24._position.sample_size,
+                calibration=None,
+            )
+            plane._position = position
+
+        time_samples = None
+        if plane_24._time and plane_24._time.bounds:
+            time_samples = Interval(
+                lower=plane_24._time.bounds.lower,
+                upper=plane_24._time.bounds.upper,
+            )
+
+            min_duration = None
+            max_duration = None
+            for artifact_24 in plane_24.artifacts.values():
+                for part_24 in artifact_24.parts.values():
+                    for chunk_24 in part_24.chunks:
+                        if chunk_24.time and chunk_24.time.exposure:
+                            if min_duration is None:
+                                min_duration = chunk_24.time.exposure
+                            else:
+                                min_duration = min(min_duration, chunk_24.time.exposure)
+                            if max_duration is None:
+                                max_duration = chunk_24.time.exposure
+                            else:
+                                max_duration = max(max_duration, chunk_24.time.exposure)
+            exposure_bounds = None
+            if min_duration and max_duration:
+                exposure_bounds = Interval(
+                    lower=min_duration,
+                    upper=max_duration,
+                )
+            time = Time(
+                bounds=time_samples,
+                samples=[time_samples],
+                dimension=plane_24._time.dimension,
+                sample_size=plane_24._time.sample_size,
+                resolution=plane_24._time.resolution,
+                exposure=plane_24._time.exposure,
+                exposure_bounds=exposure_bounds,
+            )
+            plane._time = time
+
+        if plane_24._polarization and plane_24._polarization.dimension and plane_24._polarization.polarization_states:
+            pol_states = []
+            for state in plane_24._polarization.polarization_states:
+                pol_states.append(PolarizationState(state.value))
+            polarization = Polarization(
+                dimension=plane_24._polarization.dimension,
+                states=plane_24._polarization.polarization_states,
+            )
+            plane._polarization = polarization
         obs.planes.add(plane)
 
         for artifact_24 in plane_24.artifacts.values():
             artifact = Artifact(
                 uri=artifact_24.uri,
-                product_type=DataLinkSemantics(artifact_24.product_type.value), 
-                release_type=ReleaseType(artifact_24.release_type.value),                
+                product_type=DataLinkSemantics(artifact_24.product_type.value),
+                release_type=ReleaseType(artifact_24.release_type.value),
                 content_type=artifact_24.content_type,
                 content_length=artifact_24.content_length,
                 content_checksum=artifact_24.content_checksum.uri if artifact_24.content_checksum else None,
             )
             plane.artifacts.add(artifact)
-            
-    output_f_name = sys.argv[1].replace('.24.', '.25.')
+
+    output_f_name = sys.argv[1].replace('.24.', '.25.').replace('inputs', 'outputs')
     writer_25.write(obs, output_f_name)
 
 
-  
+
 
 if __name__ == '__main__':
     try:
